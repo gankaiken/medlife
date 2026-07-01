@@ -1,5 +1,12 @@
-import { useSyncExternalStore } from 'react';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-export function create<T>(getSnapshot: () => T, subscribe: (fn: () => void) => () => void) {
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-}
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    proxy: {
+      '/agent': 'http://127.0.0.1:8787',
+      '/voice': 'http://127.0.0.1:8787',
+    },
+  },
+});

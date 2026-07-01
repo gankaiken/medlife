@@ -1,0 +1,44 @@
+:root {
+  --line: #2b1e16;
+  --ink: #2b1e16;
+  --ink-2: #5f5148;
+  --cream: #fff4df;
+  --cream-2: #ffefcf;
+  --paper: #fffaf0;
+  --mint: #a8e5c8;
+  --mint-deep: #5fcfa0;
+  --peach: #ffd0b1;
+  --peach-deep: #ff9d6e;
+  --rose: #f7a6b8;
+  --butter: #ffe08a;
+  --butter-deep: #f0b94e;
+  --sky: #bfe6ff;
+  --r-md: 18px;
+  --r-pill: 999px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+button {
+  font: inherit;
+}
+
+.app,
+.screen {
+  min-height: 100vh;
+}
