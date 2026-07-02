@@ -1,4 +1,4 @@
-"""Grand Rounds — LiveKit voice agent (Patient persona, real-time).
+"""medlife — LiveKit voice agent (Patient persona, real-time).
 
 Runs as a separate process from the FastAPI server. Joins every LiveKit
 room created by the frontend and roleplays the patient over WebRTC:
@@ -31,7 +31,7 @@ _BACKEND = Path(__file__).resolve().parent
 load_dotenv(_BACKEND / ".env.local")
 load_dotenv(_BACKEND / ".env")
 
-logger = logging.getLogger("medkit.voice-agent")
+logger = logging.getLogger("medlife.voice-agent")
 logger.setLevel(logging.INFO)
 
 
@@ -150,9 +150,10 @@ async def entrypoint(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
-    # `agent_name="medkit-voice"` opts the worker out of automatic dispatch and
+    # `agent_name="medlife-voice"` opts the worker out of automatic dispatch and
     # into explicit-by-name dispatch. Backend rooms are created with
-    # `RoomAgentDispatch(agent_name="medkit-voice")` so this matches.
+    # `RoomAgentDispatch(agent_name="medlife-voice")` so this matches.
     cli.run_app(
-        WorkerOptions(entrypoint_fnc=entrypoint, agent_name="medkit-voice")
+        WorkerOptions(entrypoint_fnc=entrypoint, agent_name="medlife-voice")
     )
+

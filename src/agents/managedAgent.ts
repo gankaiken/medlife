@@ -1,5 +1,5 @@
 /**
- * Browser-side client for the Managed Agent (`medkit-attending`).
+ * Browser-side client for the Managed Agent (`medlife-attending`).
  *
  * Talks to the FastAPI proxy at `/agent/*` — never directly to Anthropic.
  * The Anthropic API key lives server-side only.
@@ -309,3 +309,4 @@ export async function* openEventStream(
     opts.signal?.removeEventListener('abort', onAbort);
   }
 }
+

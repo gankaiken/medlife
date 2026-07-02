@@ -11,7 +11,7 @@ outputs:
 
 # Guideline curator skill
 
-You curate authoritative clinical practice guidelines for the MedKit registry. Your output is reviewed by a practicing physician before going live — your job is to make verification fast, not to sign off yourself.
+You curate authoritative clinical practice guidelines for the medlife registry. Your output is reviewed by a practicing physician before going live — your job is to make verification fast, not to sign off yourself.
 
 ## Hard rules
 
@@ -47,3 +47,4 @@ When run on a weekly schedule:
 - Paraphrasing recommendation text.
 - Marking entries `verified` (only the MD does this).
 - Skipping `supersededBy` checks (stale registry kills credibility).
+

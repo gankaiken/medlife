@@ -1,18 +1,36 @@
-# medkit
+# medlife
 
-Medkit is a voice-first clinical training simulator for medical learners. The product combines a React frontend, a Python backend, real-time patient voice interactions, and an AI attending-style debrief flow.
+medlife is a voice-first clinical training simulator for medical learners. The learner plays the doctor, the patient speaks back in real time, and an attending-style AI debrief scores the encounter afterward.
+
+## Status
+
+- Frontend build is passing with `npm run build`
+- Core app modules now live under a normalized `src/` structure
+- Backend, agent assets, docs, and scripts are separated into their own folders
 
 ## Repository Layout
 
-- `.claude/` - Claude command and skill prompts
-- `agent/` - agent-facing skill assets and schemas
-- `backend/` - FastAPI/voice-worker related files and backend docs
-- `docs/` - product notes, references, and recovery notes
-- `loop/` - long-running loop instructions
-- `public/` - static assets
-- `scripts/` - audit, verify, loop, and test scripts
-- `src/` - frontend app code
+- `.claude/` - local prompt, command, and skill assets
+- `agent/` - reusable medlife agent skills and schemas
+- `backend/` - Python voice/backend services
+- `docs/` - product notes, recovery notes, and reference material
+- `loop/` - long-running operator notes
+- `public/` - static web assets
+- `scripts/` - verification, test, audit, and loop tooling
+- `src/` - React app, game state, voice runtime, and medical data
 
-## Recovery Note
+## Key Source Areas
 
-This repository was previously shuffled, with many files living under the wrong names. The folder structure has now been normalized. See `docs/recovery-notes.md` for what was recovered automatically and what still needs manual application-level reconstruction.
+- `src/components/` - screens and UI
+- `src/components/three/` - 3D encounter scene
+- `src/game/` - app state, routing, clinic metadata, shared types
+- `src/data/` - cases, tests, treatments, medications, guidelines
+- `src/voice/` - patient conversation runtime
+- `src/agents/` - attending debrief integration
+
+## Notes
+
+- `scripts/` is intentionally excluded from the frontend build path so helper tooling does not block production app builds.
+- Recovery history and cleanup notes live in [docs/recovery-notes.md](/abs/path/C:/Users/ganka/Downloads/medlife/medlife/docs/recovery-notes.md).
+- A concise folder guide lives in [docs/repo-structure.md](/abs/path/C:/Users/ganka/Downloads/medlife/medlife/docs/repo-structure.md).
+

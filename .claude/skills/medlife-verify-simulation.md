@@ -1,9 +1,9 @@
 ---
-name: medkit-verify-simulation
+name: medlife-verify-simulation
 description: Run the deterministic verification scripts over the simulator's data and state. Use whenever you change anything under src/data/, src/game/store.ts, src/game/types.ts, or finish a batch of 3D-scene edits. Also call before committing and before submission.
 ---
 
-# medkit — verification skill
+# medlife — verification skill
 
 The simulator has a set of deterministic checks in `scripts/verify/` that catch:
 
@@ -41,3 +41,4 @@ If you change the shape of `PatientCase`, `Test`, `Treatment`, `Medication`, or 
 - Don't run the Vite dev server as a "verification" step — that's not deterministic.
 - Don't use screenshots as verification (Tharek's rule: screenshots alone don't carry enough signal).
 - Don't add project-wide linting to these scripts — keep them narrowly about simulator invariants.
+

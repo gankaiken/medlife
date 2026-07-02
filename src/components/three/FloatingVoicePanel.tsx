@@ -1,0 +1,1 @@
+export { FloatingVoicePanel } from '../FloatingVoicePanel';

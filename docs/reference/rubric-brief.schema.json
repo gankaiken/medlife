@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "rubric-brief.schema.json",
   "title": "RubricBrief",
-  "description": "Optional input that biases the medkit-rubric-author skill. The case_id is the only required field — everything else nudges the rubric toward a particular teaching emphasis.",
+  "description": "Optional input that biases the medlife-rubric-author skill. The case_id is the only required field — everything else nudges the rubric toward a particular teaching emphasis.",
   "type": "object",
   "additionalProperties": false,
   "required": ["case_id"],
@@ -69,3 +69,4 @@
     }
   }
 }
+

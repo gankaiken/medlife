@@ -4,7 +4,7 @@ import { store } from '../game/store';
 
 // ── Agent topology — Opus 4.7 hub with live data-flow pulses ──────────
 //
-// Top-down map of the medkit-attending Managed Agent (Opus 4.7) and the
+// Top-down map of the medlife-attending Managed Agent (Opus 4.7) and the
 // sub-rules + sessions it orchestrates. Every link carries a continuous
 // stream of SVG-animated pulses so the screen reads as "always on".
 //
@@ -155,7 +155,7 @@ const SUB_RULES: ChildNode[] = [
     details: {
       description:
         'Each rubric criterion is tagged with one of four frameworks so the debrief can roll up scores by competency model. Hero cases must use hand-authored rubrics; the rest fall back to an auto-derived rubric.',
-      files: ['src/data/polyclinicPatients.ts', '.claude/skills/medkit-rubric-author/'],
+      files: ['src/data/polyclinicPatients.ts', '.claude/skills/medlife-rubric-author/'],
       bullets: [
         'PLAB2 — UK clinical exam rubric',
         'RCGP — Royal College of GPs assessment',
@@ -171,7 +171,7 @@ const SESSIONS: ChildNode[] = [
   {
     id: 'sess-attending',
     side: 'right',
-    title: 'medkit-attending · grading',
+    title: 'medlife-attending · grading',
     subtitle: 'Opus 4.7 · clinical reasoning passes',
     badge: 'SESSION',
     color: 'var(--peach)',
@@ -198,7 +198,7 @@ const SESSIONS: ChildNode[] = [
   {
     id: 'sess-rubric',
     side: 'right',
-    title: 'medkit-rubric-author',
+    title: 'medlife-rubric-author',
     subtitle: 'CaseRubric authoring · polyclinic',
     badge: 'SKILL',
     color: 'var(--mint)',
@@ -210,7 +210,7 @@ const SESSIONS: ChildNode[] = [
     details: {
       description:
         'Authors a hand-crafted CaseRubric for a polyclinic case so it can graduate from the auto-derived fallback to hero-grade scoring. Output is an in-place edit of polyclinicPatients.ts adding a rubric: { ... } field.',
-      meta: [{ label: 'Path', value: '.claude/skills/medkit-rubric-author/' }],
+      meta: [{ label: 'Path', value: '.claude/skills/medlife-rubric-author/' }],
       files: ['src/data/polyclinicPatients.ts', 'src/data/guidelines.ts'],
       bullets: [
         'Tags every criterion with PLAB2 / RCGP / NURSE / SEGUE',
@@ -222,7 +222,7 @@ const SESSIONS: ChildNode[] = [
   {
     id: 'sess-curator',
     side: 'right',
-    title: 'medkit-guideline-curator',
+    title: 'medlife-guideline-curator',
     subtitle: 'WebFetch refresh of guidelines.ts',
     badge: 'SKILL · LOOP',
     color: 'var(--sky)',
@@ -235,7 +235,7 @@ const SESSIONS: ChildNode[] = [
       description:
         'Walks authoritative society sources via WebFetch and refreshes entries in guidelines.ts. Output is always verificationStatus: "auto-fetched" — a clinician must hand-flip it to "verified" before it counts for grading.',
       meta: [
-        { label: 'Path', value: '.claude/skills/medkit-guideline-curator/' },
+        { label: 'Path', value: '.claude/skills/medlife-guideline-curator/' },
         { label: 'Schedule', value: '/loop 7d' },
       ],
       files: ['src/data/guidelines.ts'],
@@ -249,7 +249,7 @@ const SESSIONS: ChildNode[] = [
   {
     id: 'sess-verify',
     side: 'right',
-    title: 'medkit-verify-simulation',
+    title: 'medlife-verify-simulation',
     subtitle: 'deterministic invariants → verify.log',
     badge: 'SKILL · LOOP',
     color: 'var(--rose)',
@@ -262,7 +262,7 @@ const SESSIONS: ChildNode[] = [
       description:
         'Runs deterministic invariant checks on src/data/* — patient cases, tests, treatments, medications — and appends a PASS/FAIL line to verify.log. Catches drift between data files and game-state expectations.',
       meta: [
-        { label: 'Path', value: '.claude/skills/medkit-verify-simulation/' },
+        { label: 'Path', value: '.claude/skills/medlife-verify-simulation/' },
         { label: 'Schedule', value: '/loop 20m' },
         { label: 'Command', value: 'npm run verify' },
       ],
@@ -458,7 +458,7 @@ export function AgentTopologyScreen() {
     if (!selectedId) return null;
     if (selectedId === 'hub') {
       return {
-        title: 'Opus 4.7 — medkit-attending Managed Agent',
+        title: 'Opus 4.7 — medlife-attending Managed Agent',
         badge: 'MANAGED AGENT',
         color: 'var(--peach)',
         deep: 'var(--peach-deep)',
@@ -530,7 +530,7 @@ export function AgentTopologyScreen() {
               Live · agent topology
             </div>
             <div style={{ fontSize: 32, fontWeight: 900, color: 'var(--ink)' }}>
-              Opus 4.7 — medkit-attending Managed Agent
+              Opus 4.7 — medlife-attending Managed Agent
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-2)', marginTop: 4 }}>
               Sub-rules feed in from the left · sessions stream out to the right · pulses are real
@@ -767,7 +767,7 @@ export function AgentTopologyScreen() {
               fontFamily="Nunito, sans-serif"
               fill="var(--ink-2)"
             >
-              medkit-attending
+              medlife-attending
             </text>
           </g>
 
@@ -1078,3 +1078,4 @@ export function AgentTopologyScreen() {
     </div>
   );
 }
+

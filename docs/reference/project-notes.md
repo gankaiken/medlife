@@ -1,5 +1,5 @@
 ---
-name: medkit-triage-logic
+name: medlife-triage-logic
 description: Reference for ESI-style triage reasoning used anywhere the simulator makes a triage decision — in case authoring (severity labels), in the attending Managed Agent's grading, or in the triage-priority verification script. Use this skill when the user asks about triage zones, ESI levels, the difference between critical/urgent/stable, or how the attending agent should reason about priority.
 ---
 
@@ -26,7 +26,7 @@ If BOTH answers are "no" and vitals are also stable, severity is `urgent` or `st
 
 `scripts/verify/triage-priority.ts` only flags `severity: 'stable'` with unstable vitals. It does NOT flag `critical` with calm-looking vitals because ESI 1–2 often presents that way (compensated shock, silent MI, watershed stroke). A tighter rule would block legitimate cases. See the comment at the top of that script — loosen further, never tighter.
 
-## How the `medkit-attending` Managed Agent should reason
+## How the `medlife-attending` Managed Agent should reason
 
 When the agent is asked to call `render_triage_badge`, the `reason` string must cite the *evidence*, not restate the label:
 
@@ -59,3 +59,4 @@ Use it:
 Don't use it:
 - For one-off ESI questions in a conversation with the user — just answer.
 - For polyclinic cases — they are outpatient and have no ER triage semantics.
+

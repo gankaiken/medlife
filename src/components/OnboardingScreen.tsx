@@ -17,7 +17,7 @@ const CARDS: Card[] = [
     body:
       "A clinic full of simulated patients with histories, symptoms, and stories. You'll talk to them out loud, decide what to do, and get a structured debrief — every claim cited to a real published guideline.",
     icon: <Doodle kind="stetho" size={140} color="var(--mint)" />,
-    tag: '01 · meet medkit',
+    tag: '01 · meet medlife',
   },
   {
     bg: 'var(--mint)',
@@ -159,3 +159,4 @@ export function OnboardingScreen() {
     </div>
   );
 }
+

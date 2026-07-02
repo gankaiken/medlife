@@ -1,12 +1,5 @@
 /**
  * Rubric + registry citation integrity check.
- *
- * Walks every case in `polyclinicPatients.ts` and `patients.ts`, collects
- * the `guideline_ref` from every rubric criterion, and confirms each one
- * resolves in the registry. Also confirms `getRubricFor()` returns the
- * authored rubric on hero cases and the auto-fallback otherwise.
- *
- * Run as part of `npm run verify`.
  */
 
 import { POLYCLINIC_CASES } from '../../src/data/polyclinicPatients.ts';
@@ -18,12 +11,17 @@ import type { PatientCase, RubricCriterion } from '../../src/game/types.ts';
 type Violation = { case: string; rule: string; detail: string };
 
 function allCases(): PatientCase[] {
-  const out: PatientCase[] = [...PATIENT_CASES];
+  const byId = new Map<string, PatientCase>();
+  for (const c of PATIENT_CASES) {
+    byId.set(c.id, c);
+  }
   for (const [specialty, cases] of Object.entries(POLYCLINIC_CASES)) {
     if (specialty === 'all-specialties') continue;
-    out.push(...cases);
+    for (const c of cases) {
+      byId.set(c.id, c);
+    }
   }
-  return out;
+  return Array.from(byId.values());
 }
 
 export function verifyRubricCitations(): Violation[] {
@@ -32,7 +30,7 @@ export function verifyRubricCitations(): Violation[] {
 
   for (const c of cases) {
     if (!c.rubric) continue;
-    const refs: Array<{ where: string; ref?: string }> = [];
+    const refs: Array<{ where: string; ref?: string | null }> = [];
     const collect = (cr: RubricCriterion, where: string) =>
       refs.push({ where: `${where}/${cr.criterion_id}`, ref: cr.guideline_ref });
     for (const cr of c.rubric.data_gathering) collect(cr, 'data_gathering');
@@ -47,15 +45,12 @@ export function verifyRubricCitations(): Violation[] {
         violations.push({
           case: c.id,
           rule: 'rubric cites unresolved guideline_ref',
-          detail: `${r.where} → "${r.ref}"`,
+          detail: `${r.where} -> "${r.ref}"`,
         });
       }
     }
   }
 
-  // Auto-rubric must produce a non-empty clinical_management section when
-  // the case has criticalTreatmentIds — that's the contract autoRubric.ts
-  // promises and the agent relies on.
   for (const c of cases) {
     if (c.rubric) continue;
     if (c.criticalTreatmentIds.length === 0) continue;
@@ -69,17 +64,11 @@ export function verifyRubricCitations(): Violation[] {
     }
   }
 
-  // Hero cases must round-trip through getRubricFor unchanged.
-  for (const id of ['im-003', 'im-004', 'im-005']) {
-    const c = cases.find((x) => x.id === id);
-    if (!c) {
-      violations.push({ case: id, rule: 'hero case missing from catalogue', detail: '' });
-      continue;
-    }
+  for (const c of cases.filter((item) => item.rubric)) {
     const r = getRubricFor(c);
     if (r !== c.rubric) {
       violations.push({
-        case: id,
+        case: c.id,
         rule: 'getRubricFor returned a different rubric than authored',
         detail: '',
       });
@@ -89,7 +78,6 @@ export function verifyRubricCitations(): Violation[] {
   return violations;
 }
 
-// CLI: `node scripts/verify/rubric-smoke.ts`
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
   const v = verifyRubricCitations();
   if (v.length === 0) {

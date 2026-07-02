@@ -1,4 +1,4 @@
-# Spec — medkit hackathon submission
+# Spec — medlife hackathon submission
 
 **Track:** Build from what you know (ER / clinical domain, doctor-in-training POV).
 **One sentence:** A voice-driven emergency room and polyclinic simulator where the AI plays the patient, the player is the doctor, and a Claude Managed Agent quietly checks the player's clinical reasoning against real guidelines while they work.
@@ -13,15 +13,15 @@
 |---|---|
 | Impact | Clinical training is real, expensive, and under-served. Doctors in training everywhere spend hours on rote cases. This is only buildable because voice + LLM-as-patient is finally good enough. |
 | Demo | Polyclinic already looks good in 3D. Remotion + extracted design-system HTML for the submission video. Show a full patient encounter in 90 s. |
-| Opus 4.7 use | (a) Opus 4.7 on the `medkit-attending` Managed Agent (whole-encounter observer + grader). (b) *Separate* Opus 4.7 direct-inference endpoint `POST /agent/triage/classify` for one-shot ESI triage at ER arrival — two distinct Opus code paths in the same submission. (c) `/loop 20m /medkit-verify-simulation` writing timestamped PASS/FAIL to `verify.log` through the shift. (d) Auto mode for the whole build. |
-| Depth | Skills composed (no specialist sub-agents): `medkit-patient-generator`, `medkit-verify-simulation`, `medkit-triage-logic`, `medkit-managed-agent-setup`, `medkit-interview`, `medkit-demo-video`. Keep-thinking log in `docs/evolution.md`. |
+| Opus 4.7 use | (a) Opus 4.7 on the `medlife-attending` Managed Agent (whole-encounter observer + grader). (b) *Separate* Opus 4.7 direct-inference endpoint `POST /agent/triage/classify` for one-shot ESI triage at ER arrival — two distinct Opus code paths in the same submission. (c) `/loop 20m /medlife-verify-simulation` writing timestamped PASS/FAIL to `verify.log` through the shift. (d) Auto mode for the whole build. |
+| Depth | Skills composed (no specialist sub-agents): `medlife-patient-generator`, `medlife-verify-simulation`, `medlife-triage-logic`, `medlife-managed-agent-setup`, `medlife-interview`, `medlife-demo-video`. Keep-thinking log in `docs/evolution.md`. |
 | Managed Agents special prize | Six primitives used: Agent (versioned), Environment, per-player Session, custom tools (render rich UI), permission policies (auto-allow reads, confirm writes), credential vault (`EHR_API_TOKEN` never leaves the backend). |
 
 ---
 
 ## The Managed Agent
 
-**Name:** `medkit-attending` — virtual attending physician reviewing the player's decisions in real time.
+**Name:** `medlife-attending` — virtual attending physician reviewing the player's decisions in real time.
 
 **System prompt (shape, not final text):**
 - You are an ER attending observing the player (a trainee) work through a case.
@@ -74,17 +74,17 @@ Each has a zod-validated schema in `src/agents/customTools.ts`; the frontend map
 
 | Skill | Purpose |
 |---|---|
-| `medkit-interview.md` | Claude asks us questions about the idea before building. |
-| `medkit-patient-generator.md` | Generate a new `PatientCase` given a chief complaint + correct diagnosis. |
-| `medkit-verify-simulation.md` | Run every `scripts/verify/*.ts`. Fail loud on violation. |
-| `medkit-managed-agent-setup.md` | Create/update the Agent, Environment, custom tools; wire the frontend event stream. |
-| `medkit-triage-logic.md` | ESI protocol reference — when Claude makes triage calls, this skill scopes the reasoning. |
-| `medkit-demo-video.md` | Extract design-system HTML, run Remotion, produce the submission MP4. |
+| `medlife-interview.md` | Claude asks us questions about the idea before building. |
+| `medlife-patient-generator.md` | Generate a new `PatientCase` given a chief complaint + correct diagnosis. |
+| `medlife-verify-simulation.md` | Run every `scripts/verify/*.ts`. Fail loud on violation. |
+| `medlife-managed-agent-setup.md` | Create/update the Agent, Environment, custom tools; wire the frontend event stream. |
+| `medlife-triage-logic.md` | ESI protocol reference — when Claude makes triage calls, this skill scopes the reasoning. |
+| `medlife-demo-video.md` | Extract design-system HTML, run Remotion, produce the submission MP4. |
 
 ## `/loop` usage
 
-- `/loop 20m /medkit-verify-simulation` — runs verification over the current patient queue and log file. Writes a one-line PASS/FAIL to `verify.log`.
-- `/loop 30m /medkit-idea-evolve` — reads `docs/evolution.md`, proposes one sharpening tweak, waits for approval.
+- `/loop 20m /medlife-verify-simulation` — runs verification over the current patient queue and log file. Writes a one-line PASS/FAIL to `verify.log`.
+- `/loop 30m /medlife-idea-evolve` — reads `docs/evolution.md`, proposes one sharpening tweak, waits for approval.
 
 ---
 
@@ -122,9 +122,9 @@ Both suites run in under two seconds without network access.
 ## Submission writeup — what to include
 
 - **Idea evolution:** `docs/evolution.md` has entries for every day of the build week — 2026-04-24 kickoff & Managed Agents adoption, 2026-04-25 permission policy / credential vault / `/loop` / triage split.
-- **Opus 4.7 use:** TWO distinct code paths on Opus 4.7 — (a) the `medkit-attending` Managed Agent (whole-encounter grading), (b) `POST /agent/triage/classify` direct-inference ESI classifier. Plus `/loop 20m /medkit-verify-simulation` for long-running verification and `/loop 30m /medkit-idea-evolve` for the Keep-Thinking cadence. Auto mode used throughout the build.
+- **Opus 4.7 use:** TWO distinct code paths on Opus 4.7 — (a) the `medlife-attending` Managed Agent (whole-encounter grading), (b) `POST /agent/triage/classify` direct-inference ESI classifier. Plus `/loop 20m /medlife-verify-simulation` for long-running verification and `/loop 30m /medlife-idea-evolve` for the Keep-Thinking cadence. Auto mode used throughout the build.
 - **Managed Agents primitives used:** Agent (versioned — bump via `POST /agent/refresh`), Environment, Session (per-shift, idle-free), custom tools (six, rendered as rich UI), permission policies (`auto` / `confirm` enforced in the renderer), credential vault (`EHR_API_TOKEN` server-side only, tested for no-leak).
-- **Skills we wrote** (six, in `.claude/skills/`): `medkit-interview`, `medkit-patient-generator`, `medkit-verify-simulation`, `medkit-triage-logic`, `medkit-managed-agent-setup`, `medkit-demo-video`. None of them are specialist sub-agents — each is a skill Claude composes as needed. Plus two slash commands in `.claude/commands/` (`medkit-verify-simulation` for the `/loop` runner, `medkit-idea-evolve` for the evolution-log cadence).
+- **Skills we wrote** (six, in `.claude/skills/`): `medlife-interview`, `medlife-patient-generator`, `medlife-verify-simulation`, `medlife-triage-logic`, `medlife-managed-agent-setup`, `medlife-demo-video`. None of them are specialist sub-agents — each is a skill Claude composes as needed. Plus two slash commands in `.claude/commands/` (`medlife-verify-simulation` for the `/loop` runner, `medlife-idea-evolve` for the evolution-log cadence).
 - **Domain expertise:** clinical ER training — what real trainees miss in rote cases, how ESI priority actually gets taught, why a simulator with LLM-played patients + attending-agent grading closes a real gap.
 
 ---
@@ -147,3 +147,4 @@ Demo video shows, in order:
 4. A `/loop` verification log having just updated.
 
 If the submission hits all four we are competitive for the Managed Agents prize *and* the main prize.
+

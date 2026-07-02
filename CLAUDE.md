@@ -1,9 +1,9 @@
 ---
-name: medkit-patient-generator
+name: medlife-patient-generator
 description: Generate a new PatientCase (ER or polyclinic) from a chief complaint plus a correct diagnosis. Use whenever the user asks to "add a new patient", "author a case", "write a [condition] patient", or when expanding the case library under src/data/patients.ts or src/data/polyclinicPatients.ts. Also use for one-off ad-hoc cases tied to a specific teaching point.
 ---
 
-# medkit — patient case generator
+# medlife — patient case generator
 
 Every new `PatientCase` must pass `npm run verify`. That verification catches the mistakes this skill exists to prevent: dangling test/treatment/diagnosis IDs, critical treatments that aren't in the acceptable list, correct diagnosis missing from `diagnosisOptions`.
 
@@ -61,3 +61,4 @@ Before writing a polyclinic case, check `src/data/medications.ts` — if no medi
 - Don't invent test IDs or treatment IDs. If the case needs a test that isn't in `TESTS`, add the test to `src/data/tests.ts` first.
 - Don't set `severity: 'critical'` on a case whose vitals are all normal AND whose chief complaint isn't time-sensitive — triage verification is loose for critical on purpose, but reviewers still notice.
 - Don't include brand names or doses in the chief complaint ("I take my 10mg Lisinopril"). Keep it in a patient voice.
+

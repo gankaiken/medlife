@@ -2,9 +2,9 @@
 description: Propose one sharpening tweak to docs/evolution.md based on recent work. Draft-only — waits for approval before writing.
 ---
 
-# `/medkit-idea-evolve`
+# `/medlife-idea-evolve`
 
-Keep-Thinking-prize loop. Designed for `/loop 30m /medkit-idea-evolve` over
+Keep-Thinking-prize loop. Designed for `/loop 30m /medlife-idea-evolve` over
 a work session so the evolution log reflects actual thinking, not just
 the first shower-thought.
 
@@ -45,3 +45,4 @@ a fake evolution entry dilutes the actual Keep-Thinking narrative.
 - Do not propose more than one tweak per firing.
 - Do not fabricate work that didn't happen ("we added X") — use `git
   log` to ground the entry in real commits.
+

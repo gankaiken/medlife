@@ -1,11 +1,11 @@
-// Custom tools exposed to the `medkit-attending` Managed Agent.
+// Custom tools exposed to the `medlife-attending` Managed Agent.
 //
 // The agent-side tool definitions live in `backend/server.py` as
-// `MEDKIT_CUSTOM_TOOLS` (JSON Schema, sent to `agents.create`). This file is
+// `MEDLIFE_CUSTOM_TOOLS` (JSON Schema, sent to `agents.create`). This file is
 // the browser-side twin: a Zod schema per tool, used to validate the
 // `input` of every `agent.custom_tool_use` event before we render it.
 //
-// If you change a schema here, update `MEDKIT_CUSTOM_TOOLS` in
+// If you change a schema here, update `MEDLIFE_CUSTOM_TOOLS` in
 // `backend/server.py` too. They must match.
 
 import { z } from 'zod';
@@ -176,3 +176,4 @@ export function parseCustomToolUse(
     call: { name, input: result.data } as ParsedCustomToolUse,
   };
 }
+

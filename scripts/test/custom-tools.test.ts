@@ -112,23 +112,23 @@ test('backend/server.py exposes every name from CUSTOM_TOOL_NAMES', () => {
     assert.match(
       py,
       re,
-      `backend/server.py is missing a "name": "${name}" entry in MEDKIT_CUSTOM_TOOLS`,
+      `backend/server.py is missing a "name": "${name}" entry in MEDLIFE_CUSTOM_TOOLS`,
     );
   }
 });
 
 test('backend/server.py does not advertise tools missing from the frontend registry', () => {
   const py = readFileSync(BACKEND_SERVER, 'utf8');
-  // Extract every "name": "..." inside MEDKIT_CUSTOM_TOOLS. We scope to the
+  // Extract every "name": "..." inside MEDLIFE_CUSTOM_TOOLS. We scope to the
   // list body so we don't pick up unrelated "name": "..." pairs (e.g.
   // AGENT_NAME / ENV_NAME at the top).
-  const listStart = py.indexOf('MEDKIT_CUSTOM_TOOLS: list[dict] = [');
-  assert.ok(listStart >= 0, 'MEDKIT_CUSTOM_TOOLS list not found in server.py');
+  const listStart = py.indexOf('MEDLIFE_CUSTOM_TOOLS: list[dict] = [');
+  assert.ok(listStart >= 0, 'MEDLIFE_CUSTOM_TOOLS list not found in server.py');
   // Tolerate CRLF (Windows checkout) as well as LF.
   const terminator = py.slice(listStart).match(/\r?\n\]\r?\n/);
   assert.ok(
     terminator && terminator.index !== undefined,
-    'MEDKIT_CUSTOM_TOOLS list terminator not found',
+    'MEDLIFE_CUSTOM_TOOLS list terminator not found',
   );
   const listEnd = listStart + terminator.index;
   const body = py.slice(listStart, listEnd);
@@ -164,3 +164,4 @@ test('system prompt mentions the confirm-gated tool', () => {
     'system prompt should explain the confirm-gate semantics',
   );
 });
+

@@ -1,6 +1,6 @@
 /**
  * One-shot runner for every verification script. Exits with code 1 if any
- * check returns violations. Used by the medkit-verify-simulation skill and
+ * check returns violations. Used by the medlife-verify-simulation skill and
  * (eventually) by the /loop routine.
  */
 
@@ -37,3 +37,4 @@ if (totalViolations > 0) {
   process.exit(1);
 }
 console.log(`\nAll ${checks.length} checks passed.`);
+

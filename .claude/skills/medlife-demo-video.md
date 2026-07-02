@@ -1,9 +1,9 @@
 ---
-name: medkit-demo-video
+name: medlife-demo-video
 description: Produce or iterate on the hackathon submission demo video. Use when the user asks to "make the demo", "work on the video", "record a walkthrough", produce a Loom/OBS export, generate narration, or touch anything under `video/` or `docs/design-system.html`. This is the last-day polish skill — don't use it before the product functionality is locked.
 ---
 
-# medkit — demo video skill
+# medlife — demo video skill
 
 The submission video is weighted heavily in judging ("Demo: is it impressive and cool to watch?"). Don't wing this — follow Tharek's HTML-design-system + Remotion pattern that Anthropic themselves use for launch videos.
 
@@ -20,7 +20,7 @@ Timings from `spec.md`. Don't negotiate them down — 90 s is the sweet spot for
 1. Patient walks into the polyclinic 3D scene (8 s).
 2. Doctor starts a voice conversation (20 s) — show waveform + transcript overlay.
 3. Order tests + results land (15 s).
-4. The `medkit-attending` Managed Agent surfaces a `render_triage_badge` card in real time (15 s) — this is the most valuable shot, it demonstrates Managed Agents + custom tools + Opus 4.7 in one frame.
+4. The `medlife-attending` Managed Agent surfaces a `render_triage_badge` card in real time (15 s) — this is the most valuable shot, it demonstrates Managed Agents + custom tools + Opus 4.7 in one frame.
 5. Submit diagnosis, agent grades with `render_case_grade` (12 s).
 6. `/loop` verification log rolling by in a corner (5 s) — proves long-running work.
 7. Final title card with team name + GitHub URL (5 s).
@@ -85,3 +85,4 @@ Example line for Beat 4: *"As I work through the case, a Claude Managed Agent ru
 - [ ] All four Success Criteria from `spec.md` visible in the video.
 - [ ] Upload URL pasted into the submission form.
 - [ ] Team watched it through once at real speed before submitting.
+

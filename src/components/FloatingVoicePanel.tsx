@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
-import type { ActivePatient } from '../../game/types';
-import type { ConversationStatus, SubtitleEvent } from '../../voice/conversation';
-import { getOrCreatePatientConversation } from '../../voice/conversationStore';
+import type { ActivePatient } from '../game/types';
+import type { ConversationStatus, SubtitleEvent } from '../voice/conversation';
+import { getOrCreatePatientConversation } from '../voice/conversationStore';
 
 interface Props {
   bedPosition: [number, number, number];

@@ -1,4 +1,4 @@
-// Hook that drives an end-of-encounter debrief through the medkit-attending
+// Hook that drives an end-of-encounter debrief through the medlife-attending
 // Managed Agent.
 //
 // Lifecycle:
@@ -169,12 +169,13 @@ async function consumeStream(
       const input = (ev as { input?: unknown }).input;
       const parsed = parseCustomToolUse(toolName, input);
       if (!parsed.ok) {
+        const validationError = 'error' in parsed ? parsed.error : 'Invalid tool payload';
         // Reply with an error so the agent knows the input was bad — don't
         // crash the stream. The agent can choose to retry.
         await sendCustomToolResult(
           sessionId,
           toolUseId,
-          `Validation error: ${parsed.error}`,
+          `Validation error: ${validationError}`,
           true,
         );
         continue;
@@ -198,3 +199,4 @@ async function consumeStream(
   }
   return gotEval ? { kind: 'eval' } : { kind: 'closed-without-eval' };
 }
+

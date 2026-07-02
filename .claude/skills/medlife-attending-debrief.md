@@ -1,11 +1,11 @@
 ---
-name: medkit-attending-debrief
-description: Reference for the DEBRIEF MODE that lives inside the `medkit-attending` Managed Agent. Use this skill when debugging why the agent emitted a particular `render_case_evaluation` payload, when modifying the rubric scoring logic, or when a citation appears unresolved in the UI. NOT used to author new rubrics — see medkit-rubric-author for that.
+name: medlife-attending-debrief
+description: Reference for the DEBRIEF MODE that lives inside the `medlife-attending` Managed Agent. Use this skill when debugging why the agent emitted a particular `render_case_evaluation` payload, when modifying the rubric scoring logic, or when a citation appears unresolved in the UI. NOT used to author new rubrics — see medlife-rubric-author for that.
 ---
 
-# medkit-attending — DEBRIEF MODE reference
+# medlife-attending — DEBRIEF MODE reference
 
-The `medkit-attending` Managed Agent (Opus 4.7) runs in two modes during a session:
+The `medlife-attending` Managed Agent (Opus 4.7) runs in two modes during a session:
 
 1. **Live mode** — observes the encounter, optionally emits `render_triage_badge`
    on ER arrivals.
@@ -14,7 +14,7 @@ The `medkit-attending` Managed Agent (Opus 4.7) runs in two modes during a sessi
    stops.
 
 This skill documents mode 2. The full system prompt is in
-[backend/server.py](../../../backend/server.py) under `MEDKIT_ATTENDING_SYSTEM_PROMPT`.
+[backend/server.py](../../../backend/server.py) under `MEDLIFE_ATTENDING_SYSTEM_PROMPT`.
 
 ## Trigger contract
 
@@ -35,7 +35,7 @@ contains:
 
 A single `render_case_evaluation` tool use whose input validates against
 [caseEvaluationInput](../../../src/agents/customTools.ts) (Zod schema mirrors
-the JSON schema in `backend/server.py:MEDKIT_CUSTOM_TOOLS`). Required fields:
+the JSON schema in `backend/server.py:MEDLIFE_CUSTOM_TOOLS`). Required fields:
 
 ```
 case_id, global_rating, domain_scores, criteria, highlights, improvements, narrative
@@ -62,7 +62,7 @@ Optional: `safety_breach` (object or null).
 
 | File | Role |
 |---|---|
-| [backend/server.py](../../../backend/server.py) | `MEDKIT_ATTENDING_SYSTEM_PROMPT` (DEBRIEF MODE section) + `MEDKIT_CUSTOM_TOOLS[render_case_evaluation]` JSON schema |
+| [backend/server.py](../../../backend/server.py) | `MEDLIFE_ATTENDING_SYSTEM_PROMPT` (DEBRIEF MODE section) + `MEDLIFE_CUSTOM_TOOLS[render_case_evaluation]` JSON schema |
 | [src/agents/customTools.ts](../../../src/agents/customTools.ts) | `caseEvaluationInput` Zod mirror; validates the tool-use input before render |
 | [src/agents/debriefRequest.ts](../../../src/agents/debriefRequest.ts) | Packs the encounter into the `[debrief request]` payload |
 | [src/agents/useAttendingDebrief.ts](../../../src/agents/useAttendingDebrief.ts) | Hook: bootstrap → session → message → stream → eval emit |
@@ -107,5 +107,7 @@ prompt.
   mention it.
 - Treating an unresolved citation in the UI as an agent bug. It usually means
   the rubric cites a `recId` that isn't in the registry: either author the
-  recommendation in `guidelines.ts` (via medkit-guideline-curator) or remove the
+  recommendation in `guidelines.ts` (via medlife-guideline-curator) or remove the
   citation from the rubric.
+
+

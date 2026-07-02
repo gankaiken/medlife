@@ -97,7 +97,7 @@ class VaultEndpointTests(unittest.TestCase):
             )
 
     def test_log_line_never_contains_vault_token(self) -> None:
-        log = logging.getLogger("medkit.agent")
+        log = logging.getLogger("medlife.agent")
         handler = _CapturingHandler()
         log.addHandler(handler)
         try:
@@ -155,13 +155,13 @@ class VaultEndpointTests(unittest.TestCase):
                 os.environ["EHR_API_TOKEN"] = previous
 
     # ─── tool registration sanity ──────────────────────────────
-    def test_lookup_tool_registered_in_MEDKIT_CUSTOM_TOOLS(self) -> None:
-        names = {t["name"] for t in server.MEDKIT_CUSTOM_TOOLS}
+    def test_lookup_tool_registered_in_MEDLIFE_CUSTOM_TOOLS(self) -> None:
+        names = {t["name"] for t in server.MEDLIFE_CUSTOM_TOOLS}
         self.assertIn("lookup_ehr_history", names)
 
     def test_vault_never_references_token_in_tool_description(self) -> None:
         tool = next(
-            t for t in server.MEDKIT_CUSTOM_TOOLS if t["name"] == "lookup_ehr_history"
+            t for t in server.MEDLIFE_CUSTOM_TOOLS if t["name"] == "lookup_ehr_history"
         )
         self.assertNotIn(_VAULT_TOKEN, str(tool))
         self.assertNotIn(
@@ -181,3 +181,4 @@ class _CapturingHandler(logging.Handler):
 
 if __name__ == "__main__":
     unittest.main()
+

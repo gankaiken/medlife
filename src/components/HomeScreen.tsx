@@ -23,7 +23,8 @@ const VERDICT_LABEL: Record<EvalHistoryEntry['verdict'], string> = {
   'clear-fail': 'Clear fail',
 };
 
-function relativeDate(ms: number): string {
+function relativeDate(value: number | string): string {
+  const ms = typeof value === 'number' ? value : new Date(value).getTime();
   const diffMs = Date.now() - ms;
   const minutes = Math.round(diffMs / 60000);
   if (minutes < 1) return 'just now';

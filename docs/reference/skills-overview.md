@@ -1,4 +1,4 @@
-# MedKit skills
+# medlife skills
 
 Five Claude skills compose into one Managed Agent. Each skill is a small, focused contract with strict input/output. Define the agent + environment **once** and reuse by ID across user sessions.
 
@@ -52,3 +52,4 @@ Skills call these as tool-use, the frontend renders the resulting events as UI c
 - `render_imaging(modality, findings, image_url)` → imaging viewer
 - `render_guideline_card(guideline_id, rec_id)` → cite-card with title/year/DOI
 - `render_debrief_rubric(domain_scores, criteria, narrative)` → end-of-case debrief panel
+

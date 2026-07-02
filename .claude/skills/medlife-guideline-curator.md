@@ -1,13 +1,13 @@
 ---
-name: medkit-guideline-curator
-description: Curate or refresh entries in `src/data/guidelines.ts` from authoritative society sources via WebFetch. Use whenever the registry needs a new condition (because a hero case rubric needs a citation that doesn't exist yet) or whenever existing entries should be checked for newer guideline versions. Designed to run on a `/loop 7d /medkit-guideline-curator` weekly schedule. Output is always `verificationStatus: "auto-fetched"` — a clinician must sign off "verified" by hand.
+name: medlife-guideline-curator
+description: Curate or refresh entries in `src/data/guidelines.ts` from authoritative society sources via WebFetch. Use whenever the registry needs a new condition (because a hero case rubric needs a citation that doesn't exist yet) or whenever existing entries should be checked for newer guideline versions. Designed to run on a `/loop 7d /medlife-guideline-curator` weekly schedule. Output is always `verificationStatus: "auto-fetched"` — a clinician must sign off "verified" by hand.
 ---
 
 # Guideline curator
 
 You curate clinical-practice guidelines for the simulator's evidence base. The
 registry at [src/data/guidelines.ts](../../../src/data/guidelines.ts) backs
-every citation the `medkit-attending` agent prints in a debrief. Hallucinated
+every citation the `medlife-attending` agent prints in a debrief. Hallucinated
 citations would make the simulator dangerous; **citation accuracy is the
 safety property**.
 
@@ -118,3 +118,4 @@ Return a short report:
 - Marking entries `verified` (only the MD does this).
 - Skipping `supersededBy` checks (stale registry kills credibility).
 - Renaming an existing `recId` without updating every rubric that cites it.
+

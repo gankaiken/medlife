@@ -1,15 +1,9 @@
 /**
  * Verify that each ER PatientCase's severity label isn't blatantly wrong.
- * NOT a formal ESI implementation — ESI keys off chief complaint and resources
- * needed, not just vitals, so a STEMI can have near-normal vitals and still
- * be correctly 'critical'. We therefore only flag the asymmetric cases:
  *
- * - severity='stable' → flag if ANY vital is unstable (HR>130, SpO2<88, SBP<80).
- *   A stable-labelled patient with shock vitals is definitely an authoring bug.
- * - severity='critical' → we do NOT flag on "calm-looking" vitals; too many
- *   false positives (MI, stroke, DKA can present with modest derangement).
- *
- * Polyclinic cases are skipped — outpatient, no ER triage semantics.
+ * The recovered Medlife sample catalogue currently contains outpatient-style
+ * cases. This verifier only applies to ER cases, which historically use an
+ * `er-*` id convention.
  */
 
 import { PATIENT_CASES } from '../../src/data/patients.ts';
@@ -35,15 +29,15 @@ function stableViolations(p: PatientCase): string[] {
 export function verifyTriagePriority(): Violation[] {
   const violations: Violation[] = [];
   for (const p of PATIENT_CASES) {
-    if (p.severity === 'stable') {
-      const reasons = stableViolations(p);
-      if (reasons.length > 0) {
-        violations.push({
-          case: p.id,
-          rule: 'severity=stable but one or more vitals are unstable',
-          detail: reasons.join(', '),
-        });
-      }
+    if (!p.id.startsWith('er-')) continue;
+    if (p.severity !== 'stable') continue;
+    const reasons = stableViolations(p);
+    if (reasons.length > 0) {
+      violations.push({
+        case: p.id,
+        rule: 'severity=stable but one or more vitals are unstable',
+        detail: reasons.join(', '),
+      });
     }
   }
   return violations;

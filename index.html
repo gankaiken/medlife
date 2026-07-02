@@ -1,6 +1,6 @@
 ---
 name: simulation-tick
-description: World physics for MedKit. For every student action (order test, prescribe, refer, examine, advise) returns strict JSON describing validity, what the student sees, time cost, and any change to patient state. Never speaks to the student.
+description: World physics for medlife. For every student action (order test, prescribe, refer, examine, advise) returns strict JSON describing validity, what the student sees, time cost, and any change to patient state. Never speaks to the student.
 model: claude-opus-4-7
 inputs:
   - case_json               # cases/case.schema.json
@@ -135,3 +135,4 @@ Output:
 - Omitting `meta.guideline_ref` for actions where the case has one.
 - Allowing the encounter to continue forever — enforce a soft cap (e.g. 15 min for GP scope) by setting `meta.time_warning` once exceeded.
 - Returning natural-language explanations of why a drug is wrong — that's the Attending agent's job in debrief, not yours.
+

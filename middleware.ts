@@ -11,7 +11,7 @@ export default async function middleware(request: Request): Promise<Response> {
   const headers = new Headers(request.headers);
   const secret = process.env.BACKEND_SHARED_SECRET;
   if (secret) {
-    headers.set('x-medkit-auth', secret);
+    headers.set('x-medlife-auth', secret);
   }
   headers.delete('host');
 
@@ -27,3 +27,4 @@ export default async function middleware(request: Request): Promise<Response> {
 
   return fetch(target, init);
 }
+

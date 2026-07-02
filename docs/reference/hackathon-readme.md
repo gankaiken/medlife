@@ -1,4 +1,4 @@
-# medkit
+# medlife
 
 Browser-based ER + polyclinic clinical training simulator. You play the doctor: new patients arrive at triage, you talk to them in real time, order tests, treat, disposition. An attending physician (Claude Opus 4.7) watches and grades your decisions.
 
@@ -8,9 +8,9 @@ Browser-based ER + polyclinic clinical training simulator. You play the doctor: 
 
 ## About
 
-Medkit is a voice-first AI patient simulator for medical students and newly graduated doctors. You take the history, order labs, read imaging, diagnose, and prescribe — talking to AI patients in real time. After each session, an attending grader powered by Claude Opus 4.7 marks your communication, history-taking, and clinical reasoning, citing published guidelines (NICE, ESC, AHA, GINA, GOLD) from a curated registry so the grading can't fabricate sources.
+medlife is a voice-first AI patient simulator for medical students and newly graduated doctors. You take the history, order labs, read imaging, diagnose, and prescribe — talking to AI patients in real time. After each session, an attending grader powered by Claude Opus 4.7 marks your communication, history-taking, and clinical reasoning, citing published guidelines (NICE, ESC, AHA, GINA, GOLD) from a curated registry so the grading can't fabricate sources.
 
-The format is modelled on OSCE training with standardised patients, which works well but is expensive, scheduled rarely, requires physical attendance, and isn't available in many countries — leaving most trainees globally with little or no access. Medkit makes the same kind of practice available on demand in the browser.
+The format is modelled on OSCE training with standardised patients, which works well but is expensive, scheduled rarely, requires physical attendance, and isn't available in many countries — leaving most trainees globally with little or no access. medlife makes the same kind of practice available on demand in the browser.
 
 Built in three days for the Opus 4.7 hackathon by a medical-doctor-turned-software-engineer ([@bedriyan](https://github.com/bedriyan)), using Claude Code with Opus 4.7.
 
@@ -24,7 +24,7 @@ Built in three days for the Opus 4.7 hackathon by a medical-doctor-turned-softwa
 | Voice transport | LiveKit Cloud (WebRTC) via `livekit-client` |
 | Voice worker | Python `livekit-agents` — Deepgram Nova-3 STT → Claude Haiku 4.5 → Cartesia Sonic-2 TTS |
 | HTTP backend | FastAPI on `127.0.0.1:8787` — Managed Agents proxy + LiveKit JWT mint |
-| Attending grader | Claude **Opus 4.7** as a Managed Agent (`medkit-attending`) |
+| Attending grader | Claude **Opus 4.7** as a Managed Agent (`medlife-attending`) |
 | State | Single `Store` class with `useSyncExternalStore` (no Redux/Zustand) |
 
 Two flows:
@@ -97,8 +97,8 @@ DEEPGRAM_API_KEY=...
 CARTESIA_API_KEY=...
 
 # Leave these blank on first run — see "Bootstrap the Managed Agent" below
-MEDKIT_AGENT_ID=
-MEDKIT_ENV_ID=
+MEDLIFE_AGENT_ID=
+MEDLIFE_ENV_ID=
 ```
 
 ### 4. Bootstrap the Managed Agent (one-time)
@@ -111,7 +111,7 @@ backend/.venv/Scripts/python backend/server.py
 curl -X POST http://127.0.0.1:8787/agent/bootstrap
 ```
 
-The response contains an `agent_id` and `environment_id`. Paste them back into `backend/.env.local` as `MEDKIT_AGENT_ID` / `MEDKIT_ENV_ID` and **restart the server**. Subsequent runs are no-ops.
+The response contains an `agent_id` and `environment_id`. Paste them back into `backend/.env.local` as `MEDLIFE_AGENT_ID` / `MEDLIFE_ENV_ID` and **restart the server**. Subsequent runs are no-ops.
 
 ---
 
@@ -172,7 +172,7 @@ scripts/verify/       # Deterministic data-integrity checks
 | Call | Model | Why |
 |---|---|---|
 | Patient voice persona | Haiku 4.5 | Fast, cheap, good enough for in-character reply |
-| `medkit-attending` grading | **Opus 4.7** | Clinical reasoning, precision matters |
+| `medlife-attending` grading | **Opus 4.7** | Clinical reasoning, precision matters |
 
 ---
 
@@ -187,3 +187,5 @@ scripts/verify/       # Deterministic data-integrity checks
 ## License
 
 Private — hackathon submission. Not licensed for redistribution.
+
+

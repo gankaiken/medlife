@@ -1,11 +1,11 @@
 {
-  "name": "medkit",
+  "name": "medlife",
   "version": "0.1.0",
   "lockfileVersion": 3,
   "requires": true,
   "packages": {
     "": {
-      "name": "medkit",
+      "name": "medlife",
       "version": "0.1.0",
       "dependencies": {
         "@react-three/drei": "^9.122.0",
@@ -2764,3 +2764,4 @@
     }
   }
 }
+

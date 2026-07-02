@@ -1,14 +1,6 @@
 /**
  * Verify cross-references between the static data files. Run on every change
  * to src/data/* to catch dangling IDs before they hit the game loop.
- *
- * Checks:
- * - Every PatientCase.testResults[].testId exists in TESTS.
- * - Every PatientCase.acceptableTreatmentIds / criticalTreatmentIds exists in TREATMENTS.
- * - criticalTreatmentIds ⊆ acceptableTreatmentIds.
- * - correctDiagnosisId is included in diagnosisOptions.
- * - All PatientCase IDs are unique (across ER + every clinic).
- * - Medication.indications reference diagnoses that at least one case has as correctDiagnosisId.
  */
 
 import { PATIENT_CASES } from '../../src/data/patients.ts';
@@ -21,15 +13,17 @@ import type { PatientCase } from '../../src/game/types.ts';
 type Violation = { case: string; rule: string; detail: string };
 
 function collectAllCases(): PatientCase[] {
-  // POLYCLINIC_CASES has an 'all-specialties' virtual bucket that
-  // re-flattens every other specialty — skip it so each case is counted
-  // exactly once.
-  const out: PatientCase[] = [...PATIENT_CASES];
+  const byId = new Map<string, PatientCase>();
+  for (const c of PATIENT_CASES) {
+    byId.set(c.id, c);
+  }
   for (const [specialty, cases] of Object.entries(POLYCLINIC_CASES)) {
     if (specialty === 'all-specialties') continue;
-    if (cases) out.push(...cases);
+    for (const c of cases) {
+      byId.set(c.id, c);
+    }
   }
-  return out;
+  return Array.from(byId.values());
 }
 
 export function verifyDataIntegrity(): Violation[] {
@@ -47,11 +41,7 @@ export function verifyDataIntegrity(): Violation[] {
 
     for (const tr of c.testResults) {
       if (!testIds.has(tr.testId)) {
-        violations.push({
-          case: c.id,
-          rule: 'testResults.testId unknown',
-          detail: tr.testId,
-        });
+        violations.push({ case: c.id, rule: 'testResults.testId unknown', detail: tr.testId });
       }
     }
 
@@ -64,6 +54,7 @@ export function verifyDataIntegrity(): Violation[] {
         });
       }
     }
+
     for (const tx of c.criticalTreatmentIds) {
       if (!treatmentIds.has(tx)) {
         violations.push({
@@ -92,11 +83,7 @@ export function verifyDataIntegrity(): Violation[] {
 
   for (const [id, count] of caseIds) {
     if (count > 1) {
-      violations.push({
-        case: id,
-        rule: 'duplicate case id',
-        detail: `${count} occurrences`,
-      });
+      violations.push({ case: id, rule: 'duplicate case id', detail: `${count} occurrences` });
     }
   }
 

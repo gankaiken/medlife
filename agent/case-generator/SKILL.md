@@ -12,7 +12,7 @@ outputs:
 
 # Case generator skill
 
-You produce a single case JSON object that the MedKit simulator runs as a voice OSCE encounter. Your output is consumed by:
+You produce a single case JSON object that the medlife simulator runs as a voice OSCE encounter. Your output is consumed by:
 - the **Patient agent**, which roleplays the `hidden.history_facts`, `personality`, and `planted_cues`;
 - the **Simulation engine**, which uses `intervention_effects` and `pathophysiology_timeline` to score actions;
 - the **Attending agent**, which scores the encounter against `rubric` and cites `source_guideline_ids` in the debrief.
@@ -85,3 +85,4 @@ A single JSON object validating against `cases/case.schema.json`. Place `case_id
 - Lab values that don't match the variant (e.g. HbA1c 6.0 in a "poor control" T2DM case).
 - Mono-cultural rosters. The 50-case set should look like a real international patient population, not one country.
 - Shallow personality. `personality.demeanor` and `language_style` should give the live voice agent something specific to play (a verbal tic, a baseline mood, a way the patient deflects vs opens up). One-word demeanors ("Anxious", "Stoic") are too thin — pair with a concrete behavioural detail.
+

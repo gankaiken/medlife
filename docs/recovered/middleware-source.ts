@@ -1,7 +1,7 @@
 // Vercel Edge Middleware: proxies /agent/* and /voice/* to the Render
 // backend with a shared-secret header. The secret stays server-side
 // (Vercel env var BACKEND_SHARED_SECRET) so direct curl traffic to the
-// Render URL gets 401'd, but browser traffic via medkit.vercel.app
+// Render URL gets 401'd, but browser traffic via medlife.vercel.app
 // works transparently.
 
 export const config = {
@@ -19,7 +19,7 @@ export default async function middleware(request: Request): Promise<Response> {
   const headers = new Headers(request.headers);
   const secret = process.env.BACKEND_SHARED_SECRET;
   if (secret) {
-    headers.set('x-medkit-auth', secret);
+    headers.set('x-medlife-auth', secret);
   }
   // host must match the target, not the Vercel edge.
   headers.delete('host');
@@ -39,3 +39,4 @@ export default async function middleware(request: Request): Promise<Response> {
 
   return fetch(target, init);
 }
+
