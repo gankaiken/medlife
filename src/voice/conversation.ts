@@ -49,7 +49,7 @@ export class PatientConversation {
   async init(): Promise<void> {
     if (this.status !== 'uninitialized') return;
     this.setStatus('loading');
-    this.listeners?.onProgress?.('Starting voice session');
+    this.listeners?.onProgress?.('Starting guided scripted session');
     await Promise.resolve();
     this.messages = [
       {
@@ -59,6 +59,17 @@ export class PatientConversation {
     ];
     this.emitMessages();
     this.listeners?.onSubtitle?.({ who: 'patient', text: this.messages[0].content });
+    this.setStatus('ready');
+  }
+
+  addGuidedExchange(question: string, answer: string): void {
+    this.messages = [
+      ...this.messages,
+      { role: 'user', content: question },
+      { role: 'assistant', content: answer },
+    ];
+    this.emitMessages();
+    this.listeners?.onSubtitle?.({ who: 'patient', text: answer });
     this.setStatus('ready');
   }
 

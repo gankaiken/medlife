@@ -1,0 +1,100 @@
+{
+  "encounter_id": "enc-case-headache-001",
+  "case_id": "case-headache-001",
+  "case_summary": {
+    "chief_complaint": "I have had a tight headache across my forehead for two days.",
+    "correct_diagnosis_id": "tension_headache",
+    "diagnosis_options": ["tension_headache", "migraine", "community_acquired_pneumonia"],
+    "severity": "stable",
+    "age": 28,
+    "gender": "F"
+  },
+  "case_expectations": {
+    "relevant_history_question_ids": ["ha-onset", "ha-redflags", "ha-stress"],
+    "acceptable_treatment_ids": ["advice-rest", "paracetamol", "safety-net-advice"],
+    "critical_treatment_ids": ["safety-net-advice"]
+  },
+  "rubric": {
+    "data_gathering": [
+      {
+        "criterion_id": "hx-focused",
+        "label": "Focused history",
+        "description": "Elicit the key headache history.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "clinical_management": [
+      {
+        "criterion_id": "mgmt-core",
+        "label": "Core management",
+        "description": "Offer an appropriate plan.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "interpersonal": [
+      {
+        "criterion_id": "rapport",
+        "label": "Rapport and clarity",
+        "description": "Explain the plan clearly.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "safety_netting": {
+      "criterion_id": "safety-net",
+      "label": "Safety netting",
+      "description": "Explain when to seek help.",
+      "weight": 1,
+      "guideline_ref": null
+    }
+  },
+  "registry_slice": [],
+  "encounter_log": {
+    "arrived_at_iso": "2026-07-09T12:00:00Z",
+    "ended_at_iso": "2026-07-09T12:07:00Z",
+    "elapsed_seconds": 420,
+    "history_questions_asked": [
+      {
+        "id": "ha-onset",
+        "question": "When did the headache start?",
+        "answer_shown_to_trainee": "Two days ago.",
+        "relevant_per_case": true
+      },
+      {
+        "id": "ha-stress",
+        "question": "Have you been stressed recently?",
+        "answer_shown_to_trainee": "Yes, exams have been intense.",
+        "relevant_per_case": true
+      }
+    ],
+    "tests_ordered": [
+      {
+        "test_id": "bp-check",
+        "test_name": "Blood pressure check",
+        "ordered_at_seconds_from_arrival": 60,
+        "result_shown_to_trainee": "Blood pressure normal.",
+        "abnormal": false
+      },
+      {
+        "test_id": "fbc",
+        "test_name": "Full blood count",
+        "ordered_at_seconds_from_arrival": 120,
+        "result_shown_to_trainee": "Haemoglobin normal.",
+        "abnormal": false
+      }
+    ],
+    "treatments_given": [],
+    "prescriptions": [
+      { "medication_id": "paracetamol-tablets", "dose": "1 g PO", "duration": "PRN for 3 days" }
+    ],
+    "transcript": [
+      { "role": "assistant", "content": "Hi doctor, I have a headache.", "source": "guided" }
+    ],
+    "results_opened": ["bp-check", "fbc"],
+    "end_confirm": { "sum": true, "safe": true, "ice": false },
+    "submitted_diagnosis_id": "tension_headache",
+    "diagnosis_was_correct": true
+  }
+}

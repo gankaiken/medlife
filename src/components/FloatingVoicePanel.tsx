@@ -88,20 +88,18 @@ export function FloatingVoicePanel({
 
   const firstName = patient.case.name.split(' ')[0];
   const statusLabel =
-    status === 'listening' ? 'LISTENING…' :
-    status === 'thinking' ? 'THINKING…' :
-    status === 'speaking' ? `${firstName.toUpperCase()} SPEAKING` :
-    status === 'loading' ? 'CONNECTING…' :
-    voiceReady ? 'LIVE' :
-    voiceStarting ? 'CONNECTING…' : 'OFFLINE';
+    status === 'thinking' ? 'GUIDED…' :
+    status === 'speaking' ? `${firstName.toUpperCase()} RESPONDING` :
+    status === 'loading' ? 'PREPARING…' :
+    voiceReady ? 'GUIDED' :
+    voiceStarting ? 'PREPARING…' : 'OFFLINE';
 
   const idleHint =
-    status === 'speaking' ? `${firstName} is speaking…` :
-    status === 'thinking' ? `${firstName} is thinking…` :
-    status === 'listening' ? 'Listening — go ahead.' :
-    voiceStarting ? (progress || 'Connecting…') :
-    voiceReady ? 'Just talk — real-time. Press T to end.' :
-    'Connecting…';
+    status === 'speaking' ? `${firstName} is replying…` :
+    status === 'thinking' ? `${firstName} is preparing a guided reply…` :
+    voiceStarting ? (progress || 'Preparing guided mode…') :
+    voiceReady ? 'Guided scripted mode — ask questions from the History tab.' :
+    'Preparing guided mode…';
 
   const live = voiceReady && (status === 'listening' || status === 'speaking' || status === 'thinking' || status === 'ready');
   const statusColor =

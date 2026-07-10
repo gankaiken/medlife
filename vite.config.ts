@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
+      '/health': 'http://127.0.0.1:8787',
       '/agent': 'http://127.0.0.1:8787',
       '/voice': 'http://127.0.0.1:8787',
     },

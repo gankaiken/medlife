@@ -5,10 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js",
+    "typecheck": "node node_modules/typescript/bin/tsc -b --pretty false",
     "build": "node node_modules/typescript/bin/tsc -b && node node_modules/vite/bin/vite.js build",
     "preview": "node node_modules/vite/bin/vite.js preview",
     "verify": "node scripts/verify/run-all.ts",
-    "test": "node scripts/test/run-all.ts"
+    "test": "node scripts/test/run-all.ts",
+    "test:e2e": "npm run build && node node_modules/@playwright/test/cli.js test"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
@@ -20,6 +22,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",
@@ -28,4 +31,3 @@
     "vite": "^5.4.10"
   }
 }
-

@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { Doodle, DoodleScatter } from './primitives';
+import { DoodleScatter } from './primitives';
 import { store } from '../game/store';
 
 export function SplashScreen() {
-  // Click anywhere or hit space → onboarding (first run) or home (returning).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.code === 'Enter') {
@@ -23,47 +22,29 @@ export function SplashScreen() {
     >
       <DoodleScatter
         items={[
-          { kind: 'cloud', x: 60, y: 70, size: 100, color: '#fff' },
-          { kind: 'cloud', x: 720, y: 110, size: 130, color: '#fff' },
-          { kind: 'cloud', x: 920, y: 60, size: 90, color: '#fff' },
-          { kind: 'sparkle', x: 180, y: 200, size: 32, color: '#FFD86B' },
-          { kind: 'sparkle', x: 880, y: 240, size: 28, color: '#fff' },
-          { kind: 'star', x: 90, y: 480, size: 38, color: '#FFD86B', anim: 'wobble' },
-          { kind: 'pill', x: 800, y: 500, size: 70, anim: 'wobble' },
-          { kind: 'heart', x: 130, y: 600, size: 40, color: '#F47A92' },
+          { kind: 'cloud', x: 70, y: 84, size: 100, color: '#fff' },
+          { kind: 'cloud', x: 760, y: 126, size: 126, color: '#fff' },
+          { kind: 'sparkle', x: 180, y: 218, size: 28, color: '#BFE6FF' },
+          { kind: 'sparkle', x: '82%', y: 210, size: 22, color: '#fff' },
+          { kind: 'pill', x: 140, y: 580, size: 54, anim: 'wobble' },
+          { kind: 'cross', x: '86%', y: 560, size: 42, color: '#4f8ea0', anim: 'drift' },
+          { kind: 'stetho', x: '8%', y: 470, size: 50, color: '#3a9f8b', anim: 'floaty' },
         ]}
       />
 
-      {/* Sun */}
       <div
-        style={{ position: 'absolute', top: 38, left: '50%', transform: 'translateX(-50%)' }}
+        style={{ position: 'absolute', top: 54, left: '50%', transform: 'translateX(-50%)' }}
         className="floaty"
       >
-        <svg width="120" height="120" viewBox="0 0 120 120">
-          <g>
-            {Array.from({ length: 12 }).map((_, i) => (
-              <rect
-                key={i}
-                x="58"
-                y="6"
-                width="4"
-                height="14"
-                rx="2"
-                fill="#F5B73D"
-                stroke="var(--line)"
-                strokeWidth="2.5"
-                transform={`rotate(${i * 30} 60 60)`}
-              />
-            ))}
-          </g>
-          <circle cx="60" cy="60" r="32" fill="#FFD86B" stroke="var(--line)" strokeWidth="4" />
-          <circle cx="50" cy="58" r="2.5" fill="var(--line)" />
-          <circle cx="70" cy="58" r="2.5" fill="var(--line)" />
-          <path d="M 50 68 Q 60 76 70 68" stroke="var(--line)" strokeWidth="3" fill="none" strokeLinecap="round" />
+        <svg width="144" height="144" viewBox="0 0 144 144">
+          <circle cx="72" cy="72" r="52" fill="rgba(255,255,255,0.6)" />
+          <circle cx="72" cy="72" r="36" fill="var(--sky)" stroke="var(--line)" strokeWidth="4" />
+          <path d="M 48 72 H 96" stroke="var(--line)" strokeWidth="4" />
+          <path d="M 72 48 V 96" stroke="var(--line)" strokeWidth="4" />
+          <circle cx="72" cy="72" r="10" fill="white" stroke="var(--line)" strokeWidth="3" />
         </svg>
       </div>
 
-      {/* Center stage */}
       <div
         style={{
           position: 'absolute',
@@ -72,31 +53,26 @@ export function SplashScreen() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 32,
+          gap: 24,
+          padding: '0 24px',
         }}
       >
         <div className="popin" style={{ animationDelay: '.05s' }}>
           <div
             style={{
-              fontFamily: 'Nunito',
+              fontFamily: '"Segoe UI", system-ui, sans-serif',
               fontWeight: 900,
-              fontSize: 168,
-              lineHeight: 1,
+              fontSize: 140,
+              lineHeight: 0.92,
               letterSpacing: '-0.04em',
-              color: 'var(--cream)',
-              WebkitTextStroke: '5px var(--line)',
+              color: 'white',
+              WebkitTextStroke: '4px var(--line)',
               paintOrder: 'stroke fill',
-              textShadow: '0 8px 0 var(--line)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 14,
+              textShadow: '0 10px 0 rgba(22,49,59,0.22)',
+              textAlign: 'center',
             }}
           >
-            med
-            <span style={{ color: 'var(--peach)' }}>kit</span>
-            <span className="wobble" style={{ display: 'inline-block', marginLeft: 8, marginBottom: 30 }}>
-              <Doodle kind="cross" size={86} color="#F47A92" />
-            </span>
+            med<span style={{ color: 'var(--teal-500)' }}>life</span>
           </div>
         </div>
 
@@ -104,20 +80,37 @@ export function SplashScreen() {
           className="popin"
           style={{
             animationDelay: '.15s',
-            fontSize: 24,
-            fontWeight: 700,
+            fontSize: 21,
+            fontWeight: 800,
             color: 'var(--ink)',
-            background: 'white',
-            padding: '10px 22px',
+            background: 'rgba(255,255,255,0.92)',
+            padding: '12px 24px',
             border: '3px solid var(--line)',
             borderRadius: 'var(--r-pill)',
             boxShadow: 'var(--plush-tiny)',
+            textAlign: 'center',
+            maxWidth: 760,
           }}
         >
-          The clinic that lets you make every mistake before they count.
+          Clinical training for med students: take histories, order tests, defend decisions, and debrief like it is exam day.
         </div>
 
-        <div className="popin breathe" style={{ animationDelay: '.3s', marginTop: 24 }}>
+        <div
+          className="popin"
+          style={{
+            animationDelay: '.22s',
+            display: 'flex',
+            gap: 10,
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+          }}
+        >
+          <span className="chip mint">OSCE-style practice</span>
+          <span className="chip">Case-based reasoning</span>
+          <span className="chip butter">AI debrief</span>
+        </div>
+
+        <div className="popin breathe" style={{ animationDelay: '.3s', marginTop: 20 }}>
           <button
             type="button"
             className="btn-plush primary"
@@ -126,8 +119,9 @@ export function SplashScreen() {
               e.stopPropagation();
               store.beginFromSplash();
             }}
+            data-testid="enter-training-floor"
           >
-            ▸ Tap to begin
+            Enter training floor
           </button>
         </div>
 
@@ -157,7 +151,6 @@ export function SplashScreen() {
         </div>
       </div>
 
-      {/* Foreground hill */}
       <svg
         style={{ position: 'absolute', bottom: -2, left: 0, width: '100%' }}
         viewBox="0 0 1200 120"
@@ -165,7 +158,7 @@ export function SplashScreen() {
       >
         <path
           d="M 0 60 Q 300 0 600 50 T 1200 50 V 120 H 0 Z"
-          fill="#A8E5C8"
+          fill="#bfdde2"
           stroke="var(--line)"
           strokeWidth="4"
         />

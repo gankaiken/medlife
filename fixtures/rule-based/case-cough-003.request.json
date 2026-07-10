@@ -1,0 +1,85 @@
+{
+  "encounter_id": "enc-case-cough-003",
+  "case_id": "case-cough-003",
+  "case_summary": {
+    "chief_complaint": "I have been coughing and feel feverish.",
+    "correct_diagnosis_id": "community_acquired_pneumonia",
+    "diagnosis_options": ["community_acquired_pneumonia", "iron_deficiency_anemia", "tension_headache"],
+    "severity": "urgent",
+    "age": 67,
+    "gender": "M"
+  },
+  "case_expectations": {
+    "relevant_history_question_ids": ["cap-duration", "cap-sputum", "cap-breathless"],
+    "acceptable_treatment_ids": ["amoxicillin", "safety-net-advice"],
+    "critical_treatment_ids": ["safety-net-advice"]
+  },
+  "rubric": {
+    "data_gathering": [
+      {
+        "criterion_id": "hx-cap",
+        "label": "Focused respiratory history",
+        "description": "Clarify duration, sputum, and breathlessness.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "clinical_management": [
+      {
+        "criterion_id": "mgmt-cap",
+        "label": "Recognise likely pneumonia",
+        "description": "Use a safe working plan.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "interpersonal": [
+      {
+        "criterion_id": "rapport",
+        "label": "Rapport and clarity",
+        "description": "Explain the plan clearly.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "safety_netting": {
+      "criterion_id": "safety-net",
+      "label": "Safety netting",
+      "description": "Explain when to seek help.",
+      "weight": 1,
+      "guideline_ref": null
+    }
+  },
+  "registry_slice": [],
+  "encounter_log": {
+    "arrived_at_iso": "2026-07-09T14:00:00Z",
+    "ended_at_iso": "2026-07-09T14:06:00Z",
+    "elapsed_seconds": 360,
+    "history_questions_asked": [
+      {
+        "id": "cap-duration",
+        "question": "How long have you had the cough?",
+        "answer_shown_to_trainee": "Three days.",
+        "relevant_per_case": true
+      }
+    ],
+    "tests_ordered": [
+      {
+        "test_id": "cxr",
+        "test_name": "Chest X-ray",
+        "ordered_at_seconds_from_arrival": 120,
+        "result_shown_to_trainee": "Right lower zone consolidation.",
+        "abnormal": true
+      }
+    ],
+    "treatments_given": [],
+    "prescriptions": [],
+    "transcript": [
+      { "role": "assistant", "content": "Breathing feels harder today.", "source": "guided" }
+    ],
+    "results_opened": ["cxr"],
+    "end_confirm": { "sum": false, "safe": false, "ice": false },
+    "submitted_diagnosis_id": "tension_headache",
+    "diagnosis_was_correct": false
+  }
+}

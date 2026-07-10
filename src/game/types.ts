@@ -87,17 +87,29 @@ export interface Prescription {
   duration: string;
 }
 
+export interface EncounterTranscriptTurn {
+  role: 'assistant' | 'user' | 'system';
+  content: string;
+  source?: 'guided' | 'voice' | 'manual';
+  timestamp?: number;
+}
+
 export interface ActivePatient {
+  encounterId: string;
   bedIndex: number;
   arrivedAt: number;
   case: PatientCase;
   askedQuestionIds: string[];
   orderedTestIds: string[];
   completedTestIds: string[];
+  viewedResultIds: string[];
   testOrderedAt: Record<string, number>;
   givenTreatmentIds: string[];
   prescriptions: Prescription[];
   submittedDiagnosisId: string | null;
+  transcript: EncounterTranscriptTurn[];
+  completedAt?: number | null;
+  endConfirm?: EndConfirmChecks | null;
 }
 
 export interface EndConfirmChecks {

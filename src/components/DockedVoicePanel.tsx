@@ -72,11 +72,10 @@ export function DockedVoicePanel({ patientName, patientLabel }: Props) {
 
   const firstName = patientName.split(' ')[0];
   const statusLabel =
-    status === 'listening' ? 'LISTENING…' :
-    status === 'thinking' ? 'THINKING…' :
-    status === 'speaking' ? `${firstName.toUpperCase()} SPEAKING` :
-    status === 'loading' ? 'CONNECTING…' :
-    status === 'ready' ? 'LIVE' :
+    status === 'thinking' ? 'GUIDED…' :
+    status === 'speaking' ? `${firstName.toUpperCase()} RESPONDING` :
+    status === 'loading' ? 'PREPARING…' :
+    status === 'ready' ? 'GUIDED' :
     'OFFLINE';
 
   const live = status === 'listening' || status === 'speaking' || status === 'thinking' || status === 'ready';
@@ -193,7 +192,7 @@ export function DockedVoicePanel({ patientName, patientLabel }: Props) {
             "{subtitle.text}"
           </>
         ) : (
-          'Voice live · just talk'
+          'Guided scripted mode · ask history questions to update the transcript'
         )}
       </div>
     </div>

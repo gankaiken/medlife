@@ -4,8 +4,11 @@ import { store, useTweaks } from '../game/store';
 import {
   listEvalHistory,
   deleteEvalHistory,
+  getEvalHistoryHealth,
   type EvalHistoryEntry,
 } from '../data/evalHistory';
+import { useRuntime, getInteractionModeLabel } from '../runtime/RuntimeProvider';
+import { getDebriefModeLabel } from '../runtime/mode';
 
 const VERDICT_COLOR: Record<EvalHistoryEntry['verdict'], string> = {
   excellent: 'var(--mint)',
@@ -89,7 +92,7 @@ const DOMAIN_META = [
 
 interface TrainingStats {
   count: number;
-  avgRating: number; // 0–5
+  avgRating: number;
   domains: { key: 'data_gathering' | 'clinical_management' | 'interpersonal'; label: string; pct: number; color: string; deep: string }[];
   weakest: { label: string; pct: number; deep: string } | null;
   streakDays: number;
@@ -107,8 +110,7 @@ function computeStats(history: EvalHistoryEntry[]): TrainingStats {
     };
   }
 
-  const avgRating =
-    history.reduce((sum, e) => sum + (VERDICT_SCORE[e.verdict] ?? 0), 0) / count;
+  const avgRating = history.reduce((sum, e) => sum + (VERDICT_SCORE[e.verdict] ?? 0), 0) / count;
 
   const domains = DOMAIN_META.map((d) => {
     const ratios = history
@@ -117,20 +119,17 @@ function computeStats(history: EvalHistoryEntry[]): TrainingStats {
         return ds && ds.max > 0 ? ds.raw / ds.max : null;
       })
       .filter((r): r is number => r !== null);
-    const pct = ratios.length > 0
-      ? Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
-      : 0;
+    const pct =
+      ratios.length > 0
+        ? Math.round((ratios.reduce((a, b) => a + b, 0) / ratios.length) * 100)
+        : 0;
     return { ...d, pct };
   });
 
   const weakestDomain = domains.reduce((min, d) => (d.pct < min.pct ? d : min), domains[0]);
   const weakest = { label: weakestDomain.label, pct: weakestDomain.pct, deep: weakestDomain.deep };
 
-  // Streak: count consecutive days (today, yesterday, …) with at least one
-  // saved review. Stops at the first gap.
-  const days = new Set(
-    history.map((e) => new Date(e.savedAt).toISOString().slice(0, 10)),
-  );
+  const days = new Set(history.map((e) => new Date(e.savedAt).toISOString().slice(0, 10)));
   let streakDays = 0;
   const cursor = new Date();
   for (;;) {
@@ -148,23 +147,36 @@ function computeStats(history: EvalHistoryEntry[]): TrainingStats {
 
 export function HomeScreen() {
   const tweaks = useTweaks();
+  const { capabilities, backendReachable } = useRuntime();
   const [history, setHistory] = useState<EvalHistoryEntry[]>([]);
+  const [historyHealth, setHistoryHealth] = useState(getEvalHistoryHealth());
 
-  // Load on mount + whenever the screen is shown so it stays current.
-  useEffect(() => {
+  const refresh = () => {
     setHistory(listEvalHistory());
+    setHistoryHealth(getEvalHistoryHealth());
+  };
+
+  useEffect(() => {
+    refresh();
   }, []);
 
-  const refresh = () => setHistory(listEvalHistory());
   const onDelete = (id: string) => {
     deleteEvalHistory(id);
     refresh();
   };
 
   const stats = computeStats(history);
+  const interactionMode = getInteractionModeLabel(capabilities, backendReachable);
+  const debriefMode = getDebriefModeLabel(capabilities, backendReachable);
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)' }}>
+    <div
+      className="screen"
+      style={{
+        background:
+          'radial-gradient(circle at top right, rgba(208,235,255,0.45), transparent 26%), linear-gradient(180deg, #eef6f8 0%, #e4f0f3 48%, #dcebee 100%)',
+      }}
+    >
       <TopBar here={0} steps={['Profile']} />
 
       <div
@@ -176,21 +188,65 @@ export function HomeScreen() {
           gap: 24,
         }}
       >
-        {/* LEFT — desk */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-2)' }}>
-              {stats.count === 0 ? 'Day one' : 'Welcome back'}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              <span className="chip mint">{interactionMode}</span>
+              <span className="chip sky">{debriefMode}</span>
+              <span className="chip">{backendReachable ? 'Backend reachable' : 'Backend unavailable'}</span>
+              <span className="chip">
+                {capabilities.voice_backend_configured ? 'Voice backend configured' : 'Voice backend unavailable'}
+              </span>
+              <span className="chip butter">
+                {capabilities.ai_debrief_available ? 'AI debrief available' : 'Rule-based fallback only'}
+              </span>
+            </div>
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 12,
+                color: 'var(--ink-3)',
+                textTransform: 'uppercase',
+                letterSpacing: '.12em',
+              }}
+            >
+              {stats.count === 0 ? 'Orientation mode' : 'Student dashboard'}
             </div>
             <h1 style={{ fontSize: 44, lineHeight: 1.05, marginTop: 4 }}>
-              {stats.count === 0 ? 'Ready when you are.' : 'Welcome back, doctor.'}
+              {stats.count === 0 ? 'Start your Medlife training shift.' : 'Welcome back to clinical practice.'}
             </h1>
             <div style={{ fontSize: 16, color: 'var(--ink-2)', fontWeight: 600, marginTop: 6 }}>
               {stats.count === 0
-                ? 'Pick a polyclinic and your first case walks in. Your training log starts filling in after that.'
-                : 'Your training log is updating with every case you finish.'}
+                ? 'Choose an outpatient pathway, meet your first patient, and build your case log one encounter at a time.'
+                : 'Track your reviews, revisit weak domains, and keep sharpening your clinical reasoning.'}
             </div>
           </div>
+
+          <div className="plush" style={{ padding: 14, background: 'var(--cream-2)' }} data-testid="education-disclaimer">
+            <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+              Educational use
+            </div>
+            <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.45 }}>
+              Medlife is a clinical education simulator. Cases are synthetic or educational, and any AI feedback may be imperfect.
+              It does not provide medical advice or replace qualified supervision.
+            </div>
+          </div>
+
+          {historyHealth.message && (
+            <div
+              className="plush"
+              style={{
+                padding: 14,
+                background: historyHealth.status === 'corrupted' ? 'var(--rose)' : 'var(--butter)',
+              }}
+              data-testid="history-recovery-banner"
+            >
+              <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+                Saved history notice
+              </div>
+              <div style={{ marginTop: 6, fontSize: 13, fontWeight: 700 }}>{historyHealth.message}</div>
+            </div>
+          )}
 
           {stats.count === 0 ? (
             <div
@@ -203,7 +259,7 @@ export function HomeScreen() {
               }}
             >
               <div style={{ position: 'absolute', top: -12, left: 22 }} className="chip butter">
-                ★ first case
+                First session
               </div>
               <div
                 style={{
@@ -220,9 +276,9 @@ export function HomeScreen() {
                   <PatientFace style={tweaks.avatarStyle} skin="#E8B68F" hair="#3B2A1F" size={120} mood="neutral" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 900, fontSize: 22 }}>No case picked yet</div>
+                  <div style={{ fontWeight: 900, fontSize: 22 }}>No case selected yet</div>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', marginTop: 2 }}>
-                    Choose a polyclinic — the next patient on the bench will walk straight in.
+                    Pick a training room and your first clinic patient will be ready for assessment.
                   </div>
                 </div>
                 <button
@@ -230,15 +286,16 @@ export function HomeScreen() {
                   className="btn-plush primary"
                   style={{ fontSize: 15, padding: '14px 18px' }}
                   onClick={() => store.setScreen('mode')}
+                  data-testid="start-session"
                 >
-                  Start →
+                  Start session
                 </button>
               </div>
             </div>
           ) : (
             <div className="plush-lg" style={{ background: 'var(--peach)', padding: 18, position: 'relative', transform: 'rotate(-0.6deg)' }}>
               <div style={{ position: 'absolute', top: -12, left: 22 }} className="chip butter">
-                ★ pick up where you left off
+                Continue revision
               </div>
               <div
                 style={{
@@ -271,9 +328,12 @@ export function HomeScreen() {
                     <span className="chip" style={{ background: VERDICT_COLOR[history[0].verdict] }}>
                       {VERDICT_LABEL[history[0].verdict]}
                     </span>
-                    <span className="chip">last review · {relativeDate(history[0].savedAt)}</span>
+                    <span className="chip">
+                      {history[0].engine === 'ai' ? 'AI debrief' : history[0].engine === 'rule_based' ? 'Rule-based assessment' : 'Saved review'}
+                    </span>
+                    <span className="chip">last review - {relativeDate(history[0].savedAt)}</span>
                     {stats.weakest && (
-                      <span className="chip butter">focus · {stats.weakest.label.toLowerCase()}</span>
+                      <span className="chip butter">focus - {stats.weakest.label.toLowerCase()}</span>
                     )}
                   </div>
                 </div>
@@ -282,8 +342,9 @@ export function HomeScreen() {
                   className="btn-plush primary"
                   style={{ fontSize: 15, padding: '14px 18px' }}
                   onClick={() => store.viewEvalHistory(history[0].id)}
+                  data-testid="open-latest-review"
                 >
-                  Review →
+                  Open review
                 </button>
               </div>
             </div>
@@ -294,8 +355,9 @@ export function HomeScreen() {
             className="btn-plush mint"
             style={{ fontSize: 22, padding: '18px 0', alignSelf: 'stretch' }}
             onClick={() => store.setScreen('mode')}
+            data-testid="start-new-case"
           >
-            ▶ Start a session
+            Start a new case
           </button>
 
           <button
@@ -316,11 +378,11 @@ export function HomeScreen() {
               }
               store.setScreen('agenticRounds');
             }}
-            title="See how the simulator grades you — agents, citations, hard rules"
+            title="Architecture notes for the simulator grading flow"
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="chip butter" style={{ fontSize: 10 }}>NEW</span>
-              <span style={{ fontWeight: 800 }}>Agentic rounds</span>
+              <span className="chip butter" style={{ fontSize: 10 }}>Prototype</span>
+              <span style={{ fontWeight: 800 }}>Architecture notes</span>
               <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>· how the simulator grades you</span>
             </span>
             <span style={{ fontWeight: 800, color: 'var(--ink-2)' }}>→</span>
@@ -344,12 +406,12 @@ export function HomeScreen() {
               }
               store.setScreen('agentTopology');
             }}
-            title="Live map of Opus 4.7 and the sub-rules + sessions it controls"
+            title="Prototype topology view for the debrief architecture"
           >
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="chip peach" style={{ fontSize: 10 }}>LIVE</span>
-              <span style={{ fontWeight: 800 }}>Agent topology</span>
-              <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>· Opus 4.7 → sub-rules &amp; sessions</span>
+              <span className="chip peach" style={{ fontSize: 10 }}>Planned</span>
+              <span style={{ fontWeight: 800 }}>Topology view</span>
+              <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>· prototype debrief internals</span>
             </span>
             <span style={{ fontWeight: 800, color: 'var(--ink-2)' }}>→</span>
           </button>
@@ -372,11 +434,12 @@ export function HomeScreen() {
                   textTransform: 'uppercase',
                 }}
               >
-                RECENT CASES
+                Recent cases
               </div>
               <span
                 style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', cursor: 'pointer' }}
                 onClick={() => store.setScreen('history')}
+                data-testid="open-history"
               >
                 see all →
               </span>
@@ -394,10 +457,10 @@ export function HomeScreen() {
                   textAlign: 'center',
                 }}
               >
-                No reviews yet — finish an encounter to see your AI feedback here.
+                No reviews yet - finish an encounter to see your debrief here.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }} data-testid="recent-attempts">
                 {history.slice(0, 6).map((r) => {
                   const color = VERDICT_COLOR[r.verdict];
                   return (
@@ -464,7 +527,7 @@ export function HomeScreen() {
                           fontFamily: 'inherit',
                         }}
                       >
-                        ✕
+                        ×
                       </button>
                     </div>
                   );
@@ -474,7 +537,6 @@ export function HomeScreen() {
           </div>
         </div>
 
-        {/* RIGHT — stats */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="plush" style={{ padding: 16, background: 'var(--butter)' }}>
             <div
@@ -487,15 +549,11 @@ export function HomeScreen() {
                 marginBottom: 10,
               }}
             >
-              YOUR TRAINING
+              Your training
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <Stat big={stats.count > 0 ? String(stats.count) : '—'} sub="cases done" />
-              <Stat
-                big={stats.count > 0 ? stats.avgRating.toFixed(1) : '—'}
-                sub="avg rating"
-                out={stats.count > 0 ? ' / 5' : ''}
-              />
+              <Stat big={stats.count > 0 ? String(stats.count) : '-'} sub="cases done" />
+              <Stat big={stats.count > 0 ? stats.avgRating.toFixed(1) : '-'} sub="avg rating" out={stats.count > 0 ? ' / 5' : ''} />
             </div>
             <div
               style={{
@@ -516,10 +574,10 @@ export function HomeScreen() {
                   letterSpacing: '.06em',
                 }}
               >
-                WEAKEST DOMAIN
+                Weakest domain
               </div>
               <div style={{ fontSize: 18, fontWeight: 900, marginTop: 2 }}>
-                {stats.weakest ? stats.weakest.label : '—'}
+                {stats.weakest ? stats.weakest.label : '-'}
               </div>
               <div
                 style={{
@@ -570,11 +628,11 @@ export function HomeScreen() {
                 marginBottom: 10,
               }}
             >
-              DOMAIN PROGRESS
+              Domain progress
             </div>
             {stats.count === 0 ? (
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink-2)' }}>
-                Domain breakdown unlocks after your first AI review.
+                Domain breakdown unlocks after your first saved debrief.
               </div>
             ) : (
               stats.domains.map((d) => (
@@ -620,13 +678,13 @@ export function HomeScreen() {
             className="plush"
             style={{ padding: 14, background: 'var(--mint)', display: 'flex', alignItems: 'center', gap: 12 }}
           >
-            <div style={{ fontSize: 36 }} className="floaty">
-              📚
+            <div style={{ fontSize: 22, fontWeight: 900 }} className="floaty">
+              Log
             </div>
             <div>
               <div style={{ fontWeight: 900, fontSize: 14 }}>
                 {stats.streakDays === 0
-                  ? 'Streak: —'
+                  ? 'Streak: -'
                   : `Streak: ${stats.streakDays} ${stats.streakDays === 1 ? 'day' : 'days'}`}
               </div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>

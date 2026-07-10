@@ -1,37 +1,26 @@
-"""End-to-end smoke test for the ER backend.
-
-Run this before a demo to confirm the Managed Agents pipeline is alive.
-It exercises every endpoint the browser uses, in order, and prints a
-concise PASS/FAIL per step so you can spot a regression in seconds.
+"""Round 1 smoke test for the active medlife backend contract.
 
 Usage:
 
-    backend/.venv/Scripts/python.exe backend/smoke_test.py
+    python backend/smoke_test.py
 
-Exits 0 if every step passes, 1 otherwise. Safe to run repeatedly; it
-does not mutate persistent state (creates a throwaway session that will
-idle out for free).
+This checks only the endpoints that still exist in the simplified
+Round 1 architecture.
 """
 
 from __future__ import annotations
 
 import json
 import sys
-import time
 import urllib.error
 import urllib.request
-from typing import Any, Optional
-from urllib.parse import urlencode
+from typing import Any
 
 BASE = "http://127.0.0.1:8787"
 TIMEOUT = 20.0
 
 
-def _request(
-    method: str,
-    path: str,
-    body: Optional[dict] = None,
-) -> tuple[int, dict | str]:
+def _request(method: str, path: str, body: dict[str, Any] | None = None) -> tuple[int, dict | str]:
     url = f"{BASE}{path}"
     data = None
     headers: dict[str, str] = {}
@@ -43,199 +32,112 @@ def _request(
         with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
             payload = resp.read().decode("utf-8", errors="replace")
             status = resp.status
-    except urllib.error.HTTPError as e:
-        payload = e.read().decode("utf-8", errors="replace")
-        status = e.code
+    except urllib.error.HTTPError as exc:
+        payload = exc.read().decode("utf-8", errors="replace")
+        status = exc.code
     try:
         return status, json.loads(payload)
     except ValueError:
         return status, payload
 
 
-def _stream(path: str, seconds: float = 10.0) -> list[dict]:
-    """Open the SSE stream and collect events for N seconds, then close."""
-    url = f"{BASE}{path}"
-    events: list[dict] = []
-    deadline = time.monotonic() + seconds
-    req = urllib.request.Request(url)
-    try:
-        with urllib.request.urlopen(req, timeout=seconds + 5) as resp:
-            cur_event: Optional[str] = None
-            cur_data: list[str] = []
-            while time.monotonic() < deadline:
-                line = resp.readline().decode("utf-8", errors="replace")
-                if not line:
-                    break
-                line = line.rstrip("\n")
-                if line.startswith(":"):
-                    continue  # comment / keepalive
-                if line == "":
-                    if cur_event and cur_data:
-                        try:
-                            events.append(
-                                {"type": cur_event, "payload": json.loads("".join(cur_data))}
-                            )
-                        except ValueError:
-                            events.append({"type": cur_event, "payload": "".join(cur_data)})
-                    cur_event = None
-                    cur_data = []
-                    continue
-                if line.startswith("event:"):
-                    cur_event = line[len("event:"):].strip()
-                elif line.startswith("data:"):
-                    cur_data.append(line[len("data:"):].lstrip())
-    except Exception as e:
-        events.append({"type": "transport_error", "payload": str(e)})
-    return events
-
-
 class Reporter:
     def __init__(self) -> None:
-        self.failures: list[str] = []
         self.passed = 0
+        self.failed: list[str] = []
 
-    def check(self, name: str, condition: bool, detail: Any = "") -> None:
+    def check(self, name: str, condition: bool, detail: str = "") -> None:
         if condition:
             self.passed += 1
             print(f"PASS  {name}")
             return
-        self.failures.append(f"{name} — {detail}")
+        self.failed.append(f"{name}: {detail}")
         print(f"FAIL  {name}  ({detail})")
 
-    def done(self) -> int:
-        print(
-            f"\n{self.passed} passed, {len(self.failures)} failed."
-        )
-        return 1 if self.failures else 0
+    def exit_code(self) -> int:
+        print(f"\n{self.passed} passed, {len(self.failed)} failed.")
+        return 1 if self.failed else 0
+
+
+def sample_debrief_request() -> dict[str, Any]:
+    return {
+        "case_id": "case-headache-001",
+        "case_summary": {
+            "chief_complaint": "Headache",
+            "correct_diagnosis_id": "tension-headache",
+            "diagnosis_options": ["tension-headache", "migraine"],
+            "severity": "stable",
+            "age": 28,
+            "gender": "F",
+        },
+        "case_expectations": {
+            "relevant_history_question_ids": ["onset", "red-flags"],
+            "acceptable_treatment_ids": ["paracetamol"],
+            "critical_treatment_ids": [],
+        },
+        "rubric": {
+            "data_gathering": [],
+            "clinical_management": [],
+            "interpersonal": [],
+            "safety_netting": None,
+        },
+        "registry_slice": [],
+        "encounter_log": {
+            "arrived_at_iso": "2026-07-09T10:00:00Z",
+            "ended_at_iso": "2026-07-09T10:08:00Z",
+            "elapsed_seconds": 480,
+            "history_questions_asked": [
+                {
+                    "id": "onset",
+                    "question": "When did this start?",
+                    "answer_shown_to_trainee": "Two days ago.",
+                    "relevant_per_case": True,
+                }
+            ],
+            "tests_ordered": [],
+            "treatments_given": [],
+            "prescriptions": [],
+            "transcript": [],
+            "results_opened": [],
+            "end_confirm": {"sum": True, "safe": True, "ice": False},
+            "submitted_diagnosis_id": "tension-headache",
+            "diagnosis_was_correct": True,
+        },
+    }
 
 
 def main() -> int:
-    r = Reporter()
+    reporter = Reporter()
 
-    # ─── 1. /health ────────────────────────────────────────────────
     status, body = _request("GET", "/health")
-    r.check("GET /health returns 200", status == 200, f"status={status}")
+    reporter.check("GET /health returns 200", status == 200, f"status={status}")
+    reporter.check("health response is JSON", isinstance(body, dict), str(body))
     if isinstance(body, dict):
-        agent = body.get("agent") or {}
-        r.check(
-            "health: anthropic SDK installed",
-            bool(agent.get("anthropic_sdk_installed")),
-            "install anthropic>=0.88.0 in backend venv",
-        )
-        r.check(
-            "health: ANTHROPIC_API_KEY configured",
-            bool(agent.get("api_key_configured")),
-            "set ANTHROPIC_API_KEY in backend/.env.local",
-        )
-        r.check(
-            "health: agent bootstrapped",
-            bool(agent.get("bootstrapped")),
-            "run /agent/bootstrap and persist IDs to backend/.env.local",
-        )
-    else:
-        r.check("health body parses as JSON", False, body)
-        return r.done()
+        reporter.check("health exposes backend flag", "backend" in body, str(body))
+        reporter.check("health exposes persistence_mode", body.get("persistence_mode") == "local_storage", str(body))
 
-    # ─── 2. /agent/bootstrap (idempotent) ──────────────────────────
-    status, body = _request("POST", "/agent/bootstrap")
-    r.check("POST /agent/bootstrap returns 200", status == 200, f"status={status} body={body}")
+    status, body = _request("GET", "/agent/capabilities")
+    reporter.check("GET /agent/capabilities returns 200", status == 200, f"status={status}")
+    reporter.check("capabilities response is JSON", isinstance(body, dict), str(body))
+
+    status, body = _request("POST", "/agent/debrief", sample_debrief_request())
+    reporter.check("POST /agent/debrief returns 200", status == 200, f"status={status} body={body}")
     if isinstance(body, dict):
-        r.check(
-            "bootstrap: created=false (cached IDs used)",
-            body.get("created") is False,
-            f"got {body.get('created')!r} — indicates a new agent was created",
-        )
+        reporter.check("debrief returns engine", body.get("engine") in {"ai", "rule_based"}, str(body))
+        reporter.check("debrief returns evaluation", isinstance(body.get("evaluation"), dict), str(body))
 
-    # ─── 3. /agent/sessions (create) ───────────────────────────────
-    status, body = _request("POST", "/agent/sessions", {"title": "smoke_test"})
-    r.check("POST /agent/sessions returns 200", status == 200, f"status={status} body={body}")
-    session_id: Optional[str] = None
-    if isinstance(body, dict):
-        session_id = body.get("session_id")
-        r.check("session_id returned", bool(session_id), "no session_id in response")
-    if not session_id:
-        return r.done()
-
-    # ─── 4. /agent/sessions/{id} (retrieve) ────────────────────────
-    status, body = _request("GET", f"/agent/sessions/{session_id}")
-    r.check("GET /agent/sessions/{id} returns 200", status == 200, f"status={status}")
-
-    # ─── 5. /agent/sessions/{id}/events (send + stream) ────────────
-    # Spawn the stream in a background thread, then send a message.
-    import threading
-
-    events_collected: list[dict] = []
-
-    def stream_worker() -> None:
-        events_collected.extend(_stream(f"/agent/sessions/{session_id}/stream", seconds=25))
-
-    t = threading.Thread(target=stream_worker, daemon=True)
-    t.start()
-    time.sleep(0.5)  # let stream open
-
-    status, body = _request(
+    status, _ = _request(
         "POST",
-        f"/agent/sessions/{session_id}/events",
+        "/voice/token",
         {
-            "events": [
-                {
-                    "type": "user.message",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                "[ER arrival] patient 62M severity=critical. "
-                                "HR 104 BP 152/94 SpO2 95 RR 22. ST elevation "
-                                "on ECG, crushing chest pain. Emit "
-                                "render_triage_badge."
-                            ),
-                        }
-                    ],
-                }
-            ]
+            "room_name": "case-headache-001",
+            "identity": "smoke-test",
+            "metadata": {"case_id": "case-headache-001"},
         },
     )
-    r.check("POST /events returns 200", status == 200, f"status={status} body={body}")
+    reporter.check("POST /voice/token returns 200 or 503", status in {200, 503}, f"status={status}")
 
-    t.join(timeout=30)
-
-    # What arrived on the stream?
-    type_counts: dict[str, int] = {}
-    for ev in events_collected:
-        type_counts[ev["type"]] = type_counts.get(ev["type"], 0) + 1
-
-    r.check(
-        "stream: session.status_running observed",
-        type_counts.get("session.status_running", 0) >= 1,
-        f"types seen: {type_counts}",
-    )
-    r.check(
-        "stream: agent.custom_tool_use observed",
-        type_counts.get("agent.custom_tool_use", 0) >= 1,
-        f"agent did not emit a custom tool. types seen: {type_counts}",
-    )
-    r.check(
-        "stream: session.status_idle observed",
-        type_counts.get("session.status_idle", 0) >= 1,
-        f"types seen: {type_counts}",
-    )
-
-    # ─── 6. /agent/sessions/{id}/events (list) ─────────────────────
-    status, body = _request("GET", f"/agent/sessions/{session_id}/events?limit=50")
-    r.check("GET /events (list) returns 200", status == 200, f"status={status}")
-    if isinstance(body, dict):
-        data = body.get("data") or []
-        r.check(
-            "list: returned at least one event",
-            len(data) >= 1,
-            f"got {len(data)} events",
-        )
-
-    # ─── 7. /agent/refresh (no-op schema change) ───────────────────
-    status, body = _request("POST", "/agent/refresh")
-    r.check("POST /agent/refresh returns 200", status == 200, f"status={status}")
-
-    return r.done()
+    return reporter.exit_code()
 
 
 if __name__ == "__main__":

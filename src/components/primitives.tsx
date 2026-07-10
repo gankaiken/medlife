@@ -370,7 +370,7 @@ export function TopBar({
           title="Open profile"
           style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
         >
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-2)' }}>Bedirhan</span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-2)' }}>Trainee</span>
           <div
             style={{
               width: 36,
@@ -409,7 +409,7 @@ export function Wordmark({ size = 36, dark = false }: WordmarkProps) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 8,
-        fontFamily: 'Nunito',
+        fontFamily: '"Segoe UI", system-ui, sans-serif',
         fontWeight: 900,
         fontSize: size,
         color: dark ? 'white' : 'var(--ink)',
@@ -420,25 +420,27 @@ export function Wordmark({ size = 36, dark = false }: WordmarkProps) {
         med
         <span
           style={{
-            color: 'var(--peach-deep)',
-            textShadow: dark ? 'none' : '0 2px 0 var(--line)',
+            color: 'var(--teal-500)',
+            textShadow: dark ? 'none' : '0 2px 0 rgba(255,255,255,0.2)',
             WebkitTextStroke: dark ? '0' : '2px var(--line)',
             paintOrder: 'stroke fill',
           }}
         >
-          kit
+          life
         </span>
         <span
           style={{
             position: 'absolute',
-            right: -size * 0.42,
-            top: size * 0.05,
-            width: size * 0.34,
-            height: size * 0.34,
-            display: 'inline-block',
+            right: -size * 0.52,
+            top: size * 0.14,
+            fontSize: size * 0.24,
+            letterSpacing: '0.18em',
+            color: dark ? 'rgba(255,255,255,0.82)' : 'var(--ink-3)',
+            textTransform: 'uppercase',
+            fontWeight: 800,
           }}
         >
-          <Doodle kind="cross" size={size * 0.34} color="#F47A92" />
+          sim
         </span>
       </span>
     </div>

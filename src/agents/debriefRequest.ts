@@ -7,6 +7,7 @@
 import type {
   ActivePatient,
   CaseRubric,
+  EndConfirmChecks,
   PatientCase,
   RubricCriterion,
 } from '../game/types.ts';
@@ -21,6 +22,7 @@ import { TESTS } from '../data/tests.ts';
 import { TREATMENTS } from '../data/treatments.ts';
 
 export interface DebriefRequest {
+  encounter_id: string;
   case_id: string;
   case_summary: {
     chief_complaint: string;
@@ -29,6 +31,11 @@ export interface DebriefRequest {
     severity: string;
     age: number;
     gender: 'M' | 'F';
+  };
+  case_expectations: {
+    relevant_history_question_ids: string[];
+    acceptable_treatment_ids: string[];
+    critical_treatment_ids: string[];
   };
   rubric: CaseRubric;
   /** Subset of GUIDELINES containing only entries cited by the rubric.
@@ -71,6 +78,14 @@ export interface DebriefRequest {
       dose: string;
       duration: string;
     }>;
+    transcript: Array<{
+      role: 'assistant' | 'user' | 'system';
+      content: string;
+      source?: 'guided' | 'voice' | 'manual';
+      timestamp?: number;
+    }>;
+    results_opened: string[];
+    end_confirm: EndConfirmChecks | null;
     submitted_diagnosis_id: string | null;
     diagnosis_was_correct: boolean | null;
   };
@@ -128,6 +143,7 @@ export function buildDebriefRequest(
   }));
 
   return {
+    encounter_id: patient.encounterId,
     case_id: c.id,
     case_summary: {
       chief_complaint: c.chiefComplaint,
@@ -136,6 +152,11 @@ export function buildDebriefRequest(
       severity: c.severity,
       age: c.age,
       gender: c.gender,
+    },
+    case_expectations: {
+      relevant_history_question_ids: c.anamnesis.filter((item) => item.relevant).map((item) => item.id),
+      acceptable_treatment_ids: c.acceptableTreatmentIds,
+      critical_treatment_ids: c.criticalTreatmentIds,
     },
     rubric,
     registry_slice,
@@ -147,6 +168,9 @@ export function buildDebriefRequest(
       tests_ordered,
       treatments_given,
       prescriptions,
+      transcript: patient.transcript.slice(),
+      results_opened: patient.viewedResultIds.slice(),
+      end_confirm: patient.endConfirm ?? null,
       submitted_diagnosis_id: patient.submittedDiagnosisId,
       diagnosis_was_correct:
         patient.submittedDiagnosisId === null

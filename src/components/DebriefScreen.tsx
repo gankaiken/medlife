@@ -9,6 +9,7 @@ import { useAttendingDebrief } from '../agents/useAttendingDebrief';
 import { buildDebriefRequest, summariseRequest } from '../agents/debriefRequest';
 import { saveEvalHistory, getEvalHistory, type EvalHistoryEntry } from '../data/evalHistory';
 import { POLYCLINIC_DIAGNOSIS_LABELS } from '../data/polyclinicPatients';
+import { buildRuleBasedDebrief } from '../agents/ruleBasedDebrief';
 import type {
   CaseEvaluationInput,
   CriterionResult,
@@ -16,6 +17,7 @@ import type {
   VerdictBand,
 } from '../agents/customTools';
 import type { ActivePatient, PatientCase } from '../game/types';
+import { useRuntime } from '../runtime/RuntimeProvider';
 
 // ── verdict / colour mapping ───────────────────────────────────────
 
@@ -484,6 +486,8 @@ function GradingProgress({ partialNarration }: { partialNarration: string }) {
 
 export function DebriefScreen() {
   const state = useGameState();
+  const { backendReachable, capabilities } = useRuntime();
+  const [retryKey, setRetryKey] = useState(0);
 
   // Review-mode: when viewedEvalHistoryId is set, render a saved evaluation
   // from localStorage instead of running the agent against a fresh request.
@@ -505,33 +509,52 @@ export function DebriefScreen() {
     if (reviewed) return null;
     if (!c || !patient) return null;
     return buildDebriefRequest(c, patient);
-  }, [reviewed, c, patient]);
+  }, [reviewed, c, patient, retryKey]);
 
-  const live = useAttendingDebrief(debriefRequest);
+  const localRuleBased = useMemo(() => {
+    if (!debriefRequest) return null;
+    return buildRuleBasedDebrief(debriefRequest);
+  }, [debriefRequest]);
+
+  const live = useAttendingDebrief(debriefRequest, { enabled: backendReachable });
   const status = reviewed ? ('got-evaluation' as const) : live.status;
-  const evaluation = reviewed?.evaluation ?? live.evaluation;
+  const fallbackActive = !reviewed && !!localRuleBased && (!backendReachable || !!live.error);
+  const evaluation = reviewed?.evaluation ?? live.evaluation ?? (fallbackActive ? localRuleBased : null);
+  const engine = reviewed?.engine ?? live.engine ?? (fallbackActive ? 'rule_based' : null);
   const error = live.error;
   const partialNarration = live.partialNarration;
+  const retryAllowed =
+    !reviewed &&
+    capabilities.backend_available &&
+    (status === 'error' || status === 'got-evaluation');
+  const warnings = [
+    ...(live.warnings ?? []),
+    ...(!backendReachable ? ['Backend unavailable. Showing a local rule-based assessment.'] : []),
+    ...(live.error && localRuleBased ? ['AI debrief failed. Showing a rule-based assessment instead.'] : []),
+  ];
 
   // Persist the evaluation the FIRST time it arrives in this session.
   const savedRef = useRef(false);
   useEffect(() => {
     if (reviewed) return;
     if (savedRef.current) return;
-    if (!evaluation || !patient || !c) return;
+    if (!evaluation || !patient || !c || !engine) return;
     savedRef.current = true;
     const dxId = patient.submittedDiagnosisId ?? c.correctDiagnosisId;
     saveEvalHistory({
+      id: patient.encounterId,
+      encounterId: patient.encounterId,
       caseId: c.id,
       caseName: c.name,
       caseAge: c.age,
       caseGender: c.gender,
       diagnosisLabel: POLYCLINIC_DIAGNOSIS_LABELS[dxId] ?? dxId,
       verdict: evaluation.global_rating,
+      engine,
       evaluation,
       patientSnapshot: patient,
     });
-  }, [evaluation, patient, c, reviewed]);
+  }, [evaluation, patient, c, reviewed, engine]);
 
   // Clear review mode when the user navigates away from this screen.
   useEffect(() => {
@@ -552,22 +575,50 @@ export function DebriefScreen() {
             body="The encounter has already been cleared. Pick a new case from the library to start fresh."
             bg="var(--cream-2)"
           />
+        ) : fallbackActive && evaluation ? (
+          <>
+            <StatusBanner
+              title="Rule-based assessment"
+              body={warnings.join(' ')}
+              bg="var(--butter)"
+            />
+            <EvaluationBody
+              evaluation={evaluation}
+              patient={patient}
+              c={c}
+              engineLabel="Rule-based assessment"
+            />
+          </>
         ) : status === 'starting' || status === 'idle' ? (
           <StatusBanner
             title={'Preparing your debrief\u2026'}
             body={`Packaging the encounter and the rubric (${summarise(debriefRequest)}). The attending will start grading in a moment.`}
             bg="var(--sky)"
           />
-        ) : status === 'streaming' && !evaluation ? (
+        ) : status === 'loading' && !evaluation ? (
           <GradingProgress partialNarration={partialNarration} />
         ) : status === 'error' ? (
           <StatusBanner
             title={'We couldn\u2019t generate your debrief'}
-            body={error ?? 'Unknown error. The encounter is still saved \u2014 try again from the home screen.'}
+            body={error ?? 'Unknown error. The encounter is still saved \u2014 you can retry safely.'}
             bg="var(--rose)"
           />
         ) : evaluation ? (
-          <EvaluationBody evaluation={evaluation} patient={patient} c={c} />
+          <>
+            {warnings.length > 0 && (
+              <StatusBanner
+                title={engine === 'rule_based' ? 'Rule-based assessment' : 'Assessment note'}
+                body={warnings.join(' ')}
+                bg={engine === 'rule_based' ? 'var(--butter)' : 'var(--cream-2)'}
+              />
+            )}
+            <EvaluationBody
+              evaluation={evaluation}
+              patient={patient}
+              c={c}
+              engineLabel={engine === 'ai' ? 'AI debrief' : engine === 'rule_based' ? 'Rule-based assessment' : 'Saved review'}
+            />
+          </>
         ) : (
           <StatusBanner
             title="No evaluation yet"
@@ -577,11 +628,29 @@ export function DebriefScreen() {
         )}
 
         <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
+          {!reviewed && capabilities.backend_available && (
+            <button
+              type="button"
+              className="btn-plush ghost"
+              style={{ flex: 1 }}
+              disabled={!retryAllowed}
+              onClick={() => {
+                if (!retryAllowed) return;
+                savedRef.current = false;
+                live.reset();
+                setRetryKey((value) => value + 1);
+              }}
+              data-testid="retry-debrief"
+            >
+              {retryAllowed ? 'Retry debrief' : 'Debrief in progress'}
+            </button>
+          )}
           <button
             type="button"
             className="btn-plush ghost"
             style={{ flex: 1 }}
             onClick={() => store.setScreen('mode')}
+            data-testid="back-to-polyclinic"
           >
             {'\u2190 Back to polyclinic'}
           </button>
@@ -590,6 +659,7 @@ export function DebriefScreen() {
             className="btn-plush primary"
             style={{ flex: 1.6 }}
             onClick={() => store.setScreen('library')}
+            data-testid="next-case"
           >
             {'Next case \u2192'}
           </button>
@@ -616,9 +686,10 @@ interface BodyProps {
   evaluation: CaseEvaluationInput;
   patient: ActivePatient;
   c: PatientCase;
+  engineLabel: string;
 }
 
-function EvaluationBody({ evaluation, patient, c }: BodyProps) {
+function EvaluationBody({ evaluation, patient, c, engineLabel }: BodyProps) {
   const verdict = evaluation.global_rating;
   const dgItems = evaluation.criteria.filter((x) => x.domain === 'data_gathering');
   const cmItems = evaluation.criteria.filter((x) => x.domain === 'clinical_management');
@@ -686,6 +757,9 @@ function EvaluationBody({ evaluation, patient, c }: BodyProps) {
       >
         <div style={{ position: 'absolute', top: -14, left: 24 }} className="chip butter">
           YOUR MARK
+        </div>
+        <div style={{ position: 'absolute', top: -14, right: 24 }} className="chip">
+          {engineLabel}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
           <div className="floaty">

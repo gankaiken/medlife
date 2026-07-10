@@ -22,7 +22,7 @@ export function EndConfirmScreen() {
   const c = getCase(caseId);
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }}>
+    <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }} data-testid="end-confirm-screen">
       <TopBar here={5} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter', 'Wrap']} />
 
       <DoodleScatter
@@ -160,6 +160,7 @@ export function EndConfirmScreen() {
               className="btn-plush primary"
               style={{ flex: 1.4 }}
               onClick={() => store.setScreen('debrief')}
+              data-testid="submit-for-assessment"
             >
               End consultation →
             </button>

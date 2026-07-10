@@ -16,6 +16,7 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
     <div
       className="tap popin"
       onClick={() => store.selectCase(c.id)}
+      data-testid={`case-card-${c.id}`}
       style={{ animationDelay: `${delay}s`, position: 'relative' }}
     >
       <div

@@ -18,10 +18,12 @@ import {
 import {
   getExistingConversation,
   disposePatientConversation,
+  getOrCreatePatientConversation,
 } from '../voice/conversationStore';
 import { TopBar } from './primitives';
 import { ExamineOverlay } from './ExamineOverlay';
 import { DockedVoicePanel } from './DockedVoicePanel';
+import { useRuntime, getInteractionModeLabel } from '../runtime/RuntimeProvider';
 
 /** Adaptive FOV: keeps the horizontal FOV near 82° regardless of viewport
  *  aspect, plus a hold-Z (or scroll wheel) "lean in" zoom. */
@@ -171,6 +173,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
 export function EncounterScreen() {
   const state = useGameState();
   const patient = state.polyclinic.patient;
+  const { capabilities, backendReachable } = useRuntime();
 
   // Voice is on the moment the encounter mounts — the FloatingVoicePanel
   // calls `getOrCreatePatientConversation()` which kicks off LiveKit
@@ -278,6 +281,23 @@ export function EncounterScreen() {
     else setVoiceActive(false);
   }, [currentPatientCaseId, patient]);
 
+  useEffect(() => {
+    if (!patient) return;
+    const conv = getOrCreatePatientConversation(POLYCLINIC_BED_INDEX, patient.case);
+    store.setPatientTranscript(conv.getMessages().map((message) => ({
+      role: message.role,
+      content: message.content,
+      source: 'guided',
+    })));
+    return conv.subscribeMessages((messages) => {
+      store.setPatientTranscript(messages.map((message) => ({
+        role: message.role,
+        content: message.content,
+        source: 'guided',
+      })));
+    });
+  }, [patient?.case.id]);
+
   // Look-around is automatic while Examine is closed — PointerLockControls
   // mounts inside Player and engages on canvas click. When Examine opens
   // we tear it down so modal clicks can't bleed into the 3D scene.
@@ -329,6 +349,14 @@ export function EncounterScreen() {
     store.setScreen('endConfirm');
   };
 
+  const wrapForAssessment = () => {
+    if (document.pointerLockElement) document.exitPointerLock();
+    interactionBus.setActive(null);
+    store.finishPolyclinicCase();
+    disposePatientConversation(POLYCLINIC_BED_INDEX);
+    store.setScreen('endConfirm');
+  };
+
   const SEATED_HEIGHT = 1.45;
   const playerSpawn = useMemo<[number, number, number]>(
     () => [DOCTOR_CHAIR_POS[0], SEATED_HEIGHT, DOCTOR_CHAIR_POS[2]],
@@ -338,6 +366,7 @@ export function EncounterScreen() {
     () => [PATIENT_CHAIR_POS[0], 1.3, PATIENT_CHAIR_POS[2]],
     [],
   );
+  const interactionMode = getInteractionModeLabel(capabilities, backendReachable);
 
   return (
     <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }}>
@@ -393,12 +422,37 @@ export function EncounterScreen() {
         >
           <button
             type="button"
+            className="btn-plush mint"
+            onClick={(e) => {
+              e.stopPropagation();
+              openExamine();
+            }}
+            style={{ fontSize: 14, padding: '12px 18px' }}
+            data-testid="open-examination"
+          >
+            Open chart and examine
+          </button>
+          <button
+            type="button"
+            className="btn-plush butter"
+            onClick={(e) => {
+              e.stopPropagation();
+              wrapForAssessment();
+            }}
+            style={{ fontSize: 14, padding: '12px 18px' }}
+            data-testid="wrap-for-assessment"
+          >
+            Wrap up for assessment
+          </button>
+          <button
+            type="button"
             className="btn-plush ghost"
             onClick={(e) => {
               e.stopPropagation();
               endConsultation();
             }}
             style={{ fontSize: 14, padding: '12px 18px' }}
+            data-testid="end-consultation"
           >
             End consultation →
           </button>
@@ -427,15 +481,15 @@ export function EncounterScreen() {
         >
           {pointerLocked ? (
             <>
-              Just talk — voice is live · <Kbd>E</Kbd> examine · <Kbd>T</Kbd> mute · <Kbd>Esc</Kbd> release
+              {interactionMode} · <Kbd>E</Kbd> examine · <Kbd>Esc</Kbd> release
             </>
           ) : (
             <>
               <span
                 className={voiceActive ? 'dot breathe' : 'dot'}
-                style={{ background: voiceActive ? 'var(--peach-deep)' : 'var(--ink-soft)' }}
+                style={{ background: voiceActive ? 'var(--peach-deep)' : 'var(--ink-3)' }}
               />
-              {voiceActive ? 'Voice live' : 'Voice muted'} · click the room to look around · <Kbd>E</Kbd> examine · <Kbd>T</Kbd> mute
+              {interactionMode} · click the room to look around · use History questions to drive the transcript
             </>
           )}
         </div>

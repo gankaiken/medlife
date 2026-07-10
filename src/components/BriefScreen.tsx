@@ -272,6 +272,7 @@ export function BriefScreen() {
             className="btn-plush primary breathe"
             style={{ fontSize: 22, padding: '18px 0' }}
             onClick={() => store.setScreen('encounter')}
+            data-testid="enter-encounter"
           >
             ✊ Knock and enter
           </button>

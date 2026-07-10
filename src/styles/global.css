@@ -1,20 +1,34 @@
 :root {
-  --line: #2b1e16;
-  --ink: #2b1e16;
-  --ink-2: #5f5148;
-  --cream: #fff4df;
-  --cream-2: #ffefcf;
-  --paper: #fffaf0;
-  --mint: #a8e5c8;
-  --mint-deep: #5fcfa0;
-  --peach: #ffd0b1;
-  --peach-deep: #ff9d6e;
-  --rose: #f7a6b8;
-  --butter: #ffe08a;
-  --butter-deep: #f0b94e;
-  --sky: #bfe6ff;
+  --line: #16313b;
+  --line-soft: rgba(22, 49, 59, 0.18);
+  --ink: #10252d;
+  --ink-2: #49616b;
+  --ink-3: #6f8790;
+  --cream: #edf5f7;
+  --cream-2: #e2eef1;
+  --paper: #f8fbfc;
+  --mint: #c6ece4;
+  --mint-deep: #3a9f8b;
+  --peach: #ffd9c3;
+  --peach-deep: #d97945;
+  --rose: #f6c4ce;
+  --rose-deep: #b65773;
+  --butter: #f9ebb2;
+  --butter-deep: #c7a23c;
+  --sky: #d0ebff;
+  --sky-deep: #4c8fbd;
+  --steel: #d7e2e8;
+  --teal-900: #123743;
+  --teal-700: #285969;
+  --teal-500: #4f8ea0;
+  --stroke-thick: 3px;
   --r-md: 18px;
+  --r-lg: 28px;
   --r-pill: 999px;
+  --plush-tiny: 0 3px 0 var(--line), 0 10px 18px rgba(16, 37, 45, 0.08);
+  --plush-sm: 0 5px 0 var(--line), 0 16px 28px rgba(16, 37, 45, 0.12);
+  --plush: 0 8px 0 var(--line), 0 24px 44px rgba(16, 37, 45, 0.15);
+  --plush-lg: 0 10px 0 var(--line), 0 32px 56px rgba(16, 37, 45, 0.18);
 }
 
 * {
@@ -30,7 +44,10 @@ body,
 
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: var(--cream);
+  background:
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.92), transparent 28%),
+    radial-gradient(circle at top right, rgba(208, 235, 255, 0.45), transparent 30%),
+    linear-gradient(180deg, #eff7f9 0%, #e8f1f4 52%, #dfecef 100%);
   color: var(--ink);
 }
 
@@ -41,4 +58,190 @@ button {
 .app,
 .screen {
   min-height: 100vh;
+}
+
+.screen {
+  position: relative;
+}
+
+.paper {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.92)),
+    linear-gradient(135deg, rgba(208, 235, 255, 0.18), transparent 35%);
+}
+
+.bg-peach-soft {
+  background:
+    radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.88), transparent 20%),
+    radial-gradient(circle at 80% 12%, rgba(198, 236, 228, 0.55), transparent 28%),
+    linear-gradient(180deg, #eaf5f8 0%, #d9ebee 52%, #c7e0e7 100%);
+}
+
+.plush,
+.plush-lg {
+  border: var(--stroke-thick) solid var(--line);
+  border-radius: var(--r-md);
+  box-shadow: var(--plush-sm);
+}
+
+.plush {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.plush-lg {
+  background: rgba(248, 251, 252, 0.97);
+  border-radius: var(--r-lg);
+  box-shadow: var(--plush-lg);
+}
+
+.btn-plush {
+  appearance: none;
+  border: var(--stroke-thick) solid var(--line);
+  border-radius: 16px;
+  background: white;
+  color: var(--ink);
+  font-weight: 800;
+  box-shadow: var(--plush-tiny);
+  cursor: pointer;
+  transition: transform 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.btn-plush:hover,
+.tap:hover {
+  transform: translateY(-2px);
+}
+
+.btn-plush:active,
+.tap:active {
+  transform: translateY(1px);
+}
+
+.btn-plush.primary {
+  background: linear-gradient(180deg, #2f7d8a 0%, #1e5c69 100%);
+  color: white;
+}
+
+.btn-plush.mint {
+  background: linear-gradient(180deg, #d9f4ec 0%, #bde7dc 100%);
+}
+
+.btn-plush.ghost {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(8px);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2.5px solid var(--line);
+  border-radius: var(--r-pill);
+  box-shadow: 0 2px 0 var(--line);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.chip.mint {
+  background: var(--mint);
+}
+
+.chip.butter {
+  background: var(--butter);
+}
+
+.chip.peach {
+  background: var(--peach);
+}
+
+.chip.rose {
+  background: var(--rose);
+}
+
+.tap {
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ink-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.breadcrumb .here {
+  color: var(--teal-700);
+}
+
+.breadcrumb .sep {
+  opacity: 0.5;
+}
+
+.dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+
+.blink {
+  animation: blink 5.4s infinite;
+}
+
+.floaty {
+  animation: floaty 4.8s ease-in-out infinite;
+}
+
+.wobble {
+  animation: wobble 5.2s ease-in-out infinite;
+}
+
+.drift {
+  animation: drift 8.2s ease-in-out infinite;
+}
+
+.breathe {
+  animation: breathe 2.2s ease-in-out infinite;
+}
+
+.popin {
+  animation: popin 460ms ease both;
+}
+
+@keyframes blink {
+  0%, 46%, 50%, 100% { transform: scaleY(1); }
+  48% { transform: scaleY(0.1); }
+}
+
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes wobble {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(2deg); }
+  75% { transform: rotate(-2deg); }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -12px, 0); }
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.04); opacity: 0.88; }
+}
+
+@keyframes popin {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }

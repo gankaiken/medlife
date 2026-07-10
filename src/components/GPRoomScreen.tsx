@@ -172,6 +172,7 @@ export function GPRoomScreen() {
         <div
           className={`tap plush-lg popin ${next ? 'breathe' : ''}`}
           onClick={() => next && store.acceptNextPatient()}
+          data-testid="accept-next-patient"
           style={{
             background: 'var(--mint)',
             padding: 32,
@@ -258,6 +259,7 @@ export function GPRoomScreen() {
         <div
           className="tap plush-lg popin"
           onClick={() => store.setScreen('library')}
+          data-testid="browse-case-folder"
           style={{
             background: 'var(--sky)',
             padding: 32,

@@ -1,0 +1,99 @@
+{
+  "encounter_id": "enc-case-anemia-002",
+  "case_id": "case-anemia-002",
+  "case_summary": {
+    "chief_complaint": "I feel tired all the time and get breathless on stairs.",
+    "correct_diagnosis_id": "iron_deficiency_anemia",
+    "diagnosis_options": ["iron_deficiency_anemia", "tension_headache", "community_acquired_pneumonia"],
+    "severity": "stable",
+    "age": 34,
+    "gender": "F"
+  },
+  "case_expectations": {
+    "relevant_history_question_ids": ["an-duration", "an-bleeding"],
+    "acceptable_treatment_ids": ["iron-oral", "safety-net-advice"],
+    "critical_treatment_ids": ["safety-net-advice"]
+  },
+  "rubric": {
+    "data_gathering": [
+      {
+        "criterion_id": "hx-anemia",
+        "label": "Focused anemia history",
+        "description": "Clarify fatigue and bleeding history.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "clinical_management": [
+      {
+        "criterion_id": "mgmt-anemia",
+        "label": "Treat likely iron deficiency",
+        "description": "Use a sensible first plan.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "interpersonal": [
+      {
+        "criterion_id": "rapport",
+        "label": "Rapport and clarity",
+        "description": "Explain the plan clearly.",
+        "weight": 1,
+        "guideline_ref": null
+      }
+    ],
+    "safety_netting": {
+      "criterion_id": "safety-net",
+      "label": "Safety netting",
+      "description": "Explain when to seek help.",
+      "weight": 1,
+      "guideline_ref": null
+    }
+  },
+  "registry_slice": [],
+  "encounter_log": {
+    "arrived_at_iso": "2026-07-09T13:00:00Z",
+    "ended_at_iso": "2026-07-09T13:08:00Z",
+    "elapsed_seconds": 480,
+    "history_questions_asked": [
+      {
+        "id": "an-duration",
+        "question": "How long have you felt this tired?",
+        "answer_shown_to_trainee": "A few months.",
+        "relevant_per_case": true
+      }
+    ],
+    "tests_ordered": [
+      {
+        "test_id": "fbc",
+        "test_name": "Full blood count",
+        "ordered_at_seconds_from_arrival": 90,
+        "result_shown_to_trainee": "Microcytic anemia.",
+        "abnormal": true
+      },
+      {
+        "test_id": "ferritin",
+        "test_name": "Ferritin",
+        "ordered_at_seconds_from_arrival": 120,
+        "result_shown_to_trainee": "Ferritin low.",
+        "abnormal": true
+      },
+      {
+        "test_id": "troponin",
+        "test_name": "Troponin",
+        "ordered_at_seconds_from_arrival": 180,
+        "result_shown_to_trainee": null,
+        "abnormal": null
+      }
+    ],
+    "treatments_given": [],
+    "prescriptions": [],
+    "transcript": [
+      { "role": "assistant", "content": "I feel washed out.", "source": "guided" }
+    ],
+    "results_opened": ["fbc", "ferritin"],
+    "end_confirm": { "sum": false, "safe": false, "ice": false },
+    "submitted_diagnosis_id": "iron_deficiency_anemia",
+    "diagnosis_was_correct": true
+  }
+}

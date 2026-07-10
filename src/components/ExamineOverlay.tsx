@@ -6,8 +6,9 @@ import { getImagingExamples } from '../data/radiologyImages';
 import { POLYCLINIC_DIAGNOSIS_LABELS, getCaseSpecialty } from '../data/polyclinicPatients';
 import { MEDICATIONS, CATEGORY_LABELS, SPECIALTY_MEDICATION_CATEGORIES, medicationById, type Medication, type MedicationCategory } from '../data/medications';
 import { CLINIC_LABELS } from '../game/clinic';
-import { getExistingConversation } from '../voice/conversationStore';
+import { getExistingConversation, getOrCreatePatientConversation } from '../voice/conversationStore';
 import type { ChatMessage } from '../voice/claude';
+import { getDiagnosisSelectionMessage } from './diagnosisState';
 
 type Tab = 'history' | 'chat' | 'tests' | 'results' | 'diagnose' | 'rx';
 
@@ -55,6 +56,7 @@ export function ExamineOverlay({ onClose, onDispatch }: Props) {
 
   return (
     <div
+      data-testid="examination-overlay"
       style={{
         position: 'fixed',
         inset: 0,
@@ -116,6 +118,7 @@ export function ExamineOverlay({ onClose, onDispatch }: Props) {
             onClick={onClose}
             style={{ fontSize: 13, padding: '8px 16px' }}
             title="Close (Esc)"
+            data-testid="close-examination"
           >
             ✕ Close
           </button>
@@ -346,7 +349,12 @@ function HistoryTab({ patient }: { patient: NonNullable<ReturnType<typeof useGam
                 textAlign: 'left',
                 fontWeight: 700,
               }}
-              onClick={() => store.askPolyclinicQuestion(q.id)}
+              onClick={() => {
+                store.askPolyclinicQuestion(q.id);
+                const conv = getOrCreatePatientConversation(POLYCLINIC_BED_INDEX, c);
+                conv.addGuidedExchange(q.question, q.answer);
+              }}
+              data-testid={`history-question-${q.id}`}
             >
               {q.question}
             </button>
@@ -484,9 +492,10 @@ function TestsTab({ patient }: { patient: NonNullable<ReturnType<typeof useGameS
                     key={t.id}
                     type="button"
                     className={`tap btn-plush ${isOrdered ? '' : 'ghost'}`}
-                    disabled={isOrdered}
-                    onClick={() => store.orderPolyclinicTest(t.id)}
-                    style={{
+                  disabled={isOrdered}
+                  onClick={() => store.orderPolyclinicTest(t.id)}
+                  data-testid={`order-test-${t.id}`}
+                  style={{
                       ...cardStyle,
                       opacity: isOrdered ? 0.55 : 1,
                       cursor: isOrdered ? 'default' : 'pointer',
@@ -668,6 +677,12 @@ function ResultsTab({ patient }: { patient: NonNullable<ReturnType<typeof useGam
             key={tid}
             className="plush"
             style={{ padding: 12, background: 'white' }}
+            data-testid={`result-${tid}`}
+            onToggle={(e) => {
+              if ((e.currentTarget as HTMLDetailsElement).open) {
+                store.markResultViewed(tid);
+              }
+            }}
           >
             <summary
               style={{
@@ -899,19 +914,15 @@ function DiagnoseTab({
       </div>
     );
   }
-  const isCorrect = submitted === c.correctDiagnosisId;
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontWeight: 700, color: 'var(--ink-2)' }}>
-        Pick the most likely diagnosis based on what you've gathered so far.
+        Pick the most likely diagnosis based on what you've gathered so far. Correctness is revealed only in the debrief.
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 8 }}>
         {shuffledOptions.map((dxId) => {
           const isPicked = submitted === dxId;
-          const showCorrect = submitted !== null && dxId === c.correctDiagnosisId;
-          const showWrong = isPicked && !isCorrect;
-          const bg = showCorrect ? 'var(--mint)' : showWrong ? 'var(--rose)' : isPicked ? 'var(--butter)' : 'white';
+          const bg = isPicked ? 'var(--butter)' : 'white';
           return (
             <button
               key={dxId}
@@ -919,6 +930,7 @@ function DiagnoseTab({
               className="tap btn-plush ghost"
               disabled={submitted !== null}
               onClick={() => store.submitPolyclinicDiagnosis(dxId)}
+              data-testid={`diagnosis-option-${dxId}`}
               style={{
                 fontSize: 13,
                 padding: '12px 14px',
@@ -927,7 +939,7 @@ function DiagnoseTab({
                 cursor: submitted !== null ? 'default' : 'pointer',
               }}
             >
-              {showCorrect ? '✓ ' : showWrong ? '✗ ' : ''}
+              {isPicked ? 'Selected: ' : ''}
               {diagLabel(dxId)}
             </button>
           );
@@ -939,13 +951,11 @@ function DiagnoseTab({
           className="plush"
           style={{
             padding: 14,
-            background: isCorrect ? 'var(--mint)' : 'var(--rose)',
+            background: 'var(--sky)',
             fontWeight: 800,
           }}
         >
-          {isCorrect
-            ? `✓ Spot on — ${diagLabel(c.correctDiagnosisId)}.`
-            : `✗ Not quite. The correct diagnosis was ${diagLabel(c.correctDiagnosisId)}.`}
+          {getDiagnosisSelectionMessage(diagLabel(submitted))}
         </div>
       )}
 
@@ -956,6 +966,7 @@ function DiagnoseTab({
             className="btn-plush primary breathe"
             style={{ fontSize: 16, padding: '14px 0' }}
             onClick={onGoToRx}
+            data-testid="go-to-rx"
           >
             Write prescription →
           </button>
@@ -964,6 +975,7 @@ function DiagnoseTab({
             className="btn-plush ghost"
             style={{ fontSize: 16, padding: '14px 0' }}
             onClick={onDispatch}
+            data-testid="dispatch-without-rx"
           >
             Dispatch without Rx →
           </button>
@@ -973,7 +985,7 @@ function DiagnoseTab({
   );
 }
 
-// ── Chat tab — live voice transcript ─────────────────────────────
+// ── Chat tab — guided/scripted transcript ────────────────────────
 
 function ChatTab({ patientName }: { patientName: string }) {
   const [messages, setMessages] = useState<ReadonlyArray<ChatMessage>>(() => {
@@ -1004,9 +1016,8 @@ function ChatTab({ patientName }: { patientName: string }) {
 
   if (visible.length === 0) {
     return (
-      <div className="plush" style={{ padding: 14, fontWeight: 700, color: 'var(--ink-2)' }}>
-        No conversation yet. The transcript appears here as you talk to {patientName.split(' ')[0]} —
-        and updates live during the consultation.
+        <div className="plush" style={{ padding: 14, fontWeight: 700, color: 'var(--ink-2)' }}>
+        No transcript yet. Guided patient replies appear here once you ask questions from the History tab.
       </div>
     );
   }
@@ -1350,6 +1361,7 @@ function RxTab({
         className="btn-plush primary breathe"
         style={{ fontSize: 18, padding: '14px 0' }}
         onClick={onDispatch}
+        data-testid="dispatch-patient"
       >
         {submitted.length === 0 ? 'Dispatch without prescription →' : 'Dispatch patient →'}
       </button>

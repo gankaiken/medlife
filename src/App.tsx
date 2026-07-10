@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { store, useScreen, useTweaks } from './game/store';
 import { applyIntensity, applyPalette } from './styles/palettes';
 import { SplashScreen } from './components/SplashScreen';
@@ -8,13 +8,17 @@ import { ModeSelectScreen } from './components/ModeSelectScreen';
 import { GPRoomScreen } from './components/GPRoomScreen';
 import { CaseLibraryScreen } from './components/CaseLibraryScreen';
 import { BriefScreen } from './components/BriefScreen';
-import { EncounterScreen } from './components/EncounterScreen';
 import { EndConfirmScreen } from './components/EndConfirmScreen';
 import { DebriefScreen } from './components/DebriefScreen';
 import { HistoryScreen } from './components/HistoryScreen';
 import { AgenticRoundsScreen } from './components/AgenticRoundsScreen';
 import { AgentTopologyScreen } from './components/AgentTopologyScreen';
 import { BackgroundMusic } from './components/BackgroundMusic';
+import { RuntimeProvider } from './runtime/RuntimeProvider';
+
+const EncounterScreen = lazy(() =>
+  import('./components/EncounterScreen').then((mod) => ({ default: mod.EncounterScreen })),
+);
 
 export default function App() {
   const screen = useScreen();
@@ -41,21 +45,27 @@ export default function App() {
   }, []);
 
   return (
-    <div className="app">
-      {screen === 'splash' && <SplashScreen />}
-      {screen === 'onboarding' && <OnboardingScreen />}
-      {screen === 'home' && <HomeScreen />}
-      {screen === 'mode' && <ModeSelectScreen />}
-      {screen === 'gpRoom' && <GPRoomScreen />}
-      {screen === 'library' && <CaseLibraryScreen />}
-      {screen === 'brief' && <BriefScreen />}
-      {screen === 'encounter' && <EncounterScreen />}
-      {screen === 'endConfirm' && <EndConfirmScreen />}
-      {screen === 'debrief' && <DebriefScreen />}
-      {screen === 'history' && <HistoryScreen />}
-      {screen === 'agenticRounds' && <AgenticRoundsScreen />}
-      {screen === 'agentTopology' && <AgentTopologyScreen />}
-      <BackgroundMusic />
-    </div>
+    <RuntimeProvider>
+      <div className="app">
+        {screen === 'splash' && <SplashScreen />}
+        {screen === 'onboarding' && <OnboardingScreen />}
+        {screen === 'home' && <HomeScreen />}
+        {screen === 'mode' && <ModeSelectScreen />}
+        {screen === 'gpRoom' && <GPRoomScreen />}
+        {screen === 'library' && <CaseLibraryScreen />}
+        {screen === 'brief' && <BriefScreen />}
+        {screen === 'encounter' && (
+          <Suspense fallback={<div className="screen paper" style={{ display: 'grid', placeItems: 'center' }}>Loading encounter...</div>}>
+            <EncounterScreen />
+          </Suspense>
+        )}
+        {screen === 'endConfirm' && <EndConfirmScreen />}
+        {screen === 'debrief' && <DebriefScreen />}
+        {screen === 'history' && <HistoryScreen />}
+        {screen === 'agenticRounds' && <AgenticRoundsScreen />}
+        {screen === 'agentTopology' && <AgentTopologyScreen />}
+        <BackgroundMusic />
+      </div>
+    </RuntimeProvider>
   );
 }

@@ -1,15 +1,16 @@
 import { useSyncExternalStore } from 'react';
-import { CASES } from '../data/cases';
-import { getPatientCase } from '../data/patients';
-import { CLINIC_IDS, type ClinicId } from './clinic';
+import { CASES } from '../data/cases.ts';
+import { getPatientCase } from '../data/patients.ts';
+import { CLINIC_IDS, type ClinicId } from './clinic.ts';
 import type {
   ActivePatient,
+  EncounterTranscriptTurn,
   EndConfirmChecks,
   GameState,
   Prescription,
   Screen,
   Tweaks,
-} from './types';
+} from './types.ts';
 
 export const POLYCLINIC_BED_INDEX = 0;
 
@@ -27,19 +28,36 @@ const DEFAULT_END_CONFIRM: EndConfirmChecks = {
 
 const initialCaseId = CASES[0]?.id ?? 'case-headache-001';
 
-let state: GameState = {
-  screen: 'splash',
-  onboardingStep: 0,
-  selectedCaseId: initialCaseId,
-  viewedEvalHistoryId: null,
-  endConfirm: DEFAULT_END_CONFIRM,
-  tweaks: DEFAULT_TWEAKS,
-  lastEncounter: null,
-  polyclinic: {
-    clinic: 'all-specialties',
-    patient: null,
-  },
-};
+function createEncounterId(caseId: string): string {
+  const cryptoRef = globalThis.crypto;
+  if (cryptoRef && typeof cryptoRef.randomUUID === 'function') {
+    return `enc-${caseId}-${cryptoRef.randomUUID()}`;
+  }
+  return `enc-${caseId}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function buildInitialState(): GameState {
+  return {
+    screen: 'splash',
+    onboardingStep: 0,
+    selectedCaseId: initialCaseId,
+    viewedEvalHistoryId: null,
+    endConfirm: DEFAULT_END_CONFIRM,
+    tweaks: DEFAULT_TWEAKS,
+    lastEncounter: null,
+    polyclinic: {
+      clinic: 'all-specialties',
+      patient: null,
+    },
+  };
+}
+
+let state: GameState = buildInitialState();
+
+export function resetGameStateForTests(): void {
+  state = buildInitialState();
+  emit();
+}
 
 const listeners = new Set<() => void>();
 
@@ -56,16 +74,21 @@ function buildActivePatient(caseId: string): ActivePatient | null {
   const c = getPatientCase(caseId);
   if (!c) return null;
   return {
+    encounterId: createEncounterId(caseId),
     bedIndex: POLYCLINIC_BED_INDEX,
     arrivedAt: Date.now(),
     case: c,
     askedQuestionIds: [],
     orderedTestIds: [],
     completedTestIds: [],
+    viewedResultIds: [],
     testOrderedAt: {},
     givenTreatmentIds: [],
     prescriptions: [],
     submittedDiagnosisId: null,
+    transcript: [],
+    completedAt: null,
+    endConfirm: null,
   };
 }
 
@@ -183,10 +206,39 @@ export const store = {
     });
   },
 
+  markResultViewed(testId: string): void {
+    mutatePatient((patient) => {
+      if (!patient.viewedResultIds.includes(testId)) {
+        patient.viewedResultIds = [...patient.viewedResultIds, testId];
+      }
+    });
+  },
+
+  setPatientTranscript(transcript: EncounterTranscriptTurn[]): void {
+    mutatePatient((patient) => {
+      patient.transcript = transcript.slice();
+    });
+  },
+
   finishPolyclinicCase(): void {
+    const completedAt = Date.now();
     setState((prev) => ({
       ...prev,
-      lastEncounter: prev.polyclinic.patient,
+      lastEncounter: prev.polyclinic.patient
+        ? {
+            ...prev.polyclinic.patient,
+            viewedResultIds: [...prev.polyclinic.patient.viewedResultIds],
+            transcript: prev.polyclinic.patient.transcript.slice(),
+            prescriptions: [...prev.polyclinic.patient.prescriptions],
+            askedQuestionIds: [...prev.polyclinic.patient.askedQuestionIds],
+            orderedTestIds: [...prev.polyclinic.patient.orderedTestIds],
+            completedTestIds: [...prev.polyclinic.patient.completedTestIds],
+            givenTreatmentIds: [...prev.polyclinic.patient.givenTreatmentIds],
+            testOrderedAt: { ...prev.polyclinic.patient.testOrderedAt },
+            completedAt,
+            endConfirm: { ...prev.endConfirm },
+          }
+        : null,
       polyclinic: { ...prev.polyclinic, patient: null },
     }));
   },
@@ -223,9 +275,13 @@ function mutatePatient(mutator: (patient: ActivePatient) => void): void {
     askedQuestionIds: [...current.askedQuestionIds],
     orderedTestIds: [...current.orderedTestIds],
     completedTestIds: [...current.completedTestIds],
+    viewedResultIds: [...current.viewedResultIds],
     testOrderedAt: { ...current.testOrderedAt },
     givenTreatmentIds: [...current.givenTreatmentIds],
     prescriptions: [...current.prescriptions],
+    transcript: current.transcript.slice(),
+    completedAt: current.completedAt ?? null,
+    endConfirm: current.endConfirm ? { ...current.endConfirm } : null,
   };
   mutator(draft);
   setState((prev) => ({

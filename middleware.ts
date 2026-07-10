@@ -1,12 +1,24 @@
 export const config = {
-  matcher: ['/agent/:path*', '/voice/:path*'],
+  matcher: ['/health', '/agent/:path*', '/voice/:path*'],
 };
 
-const BACKEND_URL = 'https://grand-rounds-backend.onrender.com';
+function resolveBackendUrl(): string | null {
+  const raw = process.env.MEDLIFE_BACKEND_URL?.trim();
+  if (!raw) return null;
+  return raw.replace(/\/+$/, '');
+}
 
 export default async function middleware(request: Request): Promise<Response> {
+  const backendUrl = resolveBackendUrl();
+  if (!backendUrl) {
+    return new Response('MEDLIFE_BACKEND_URL is not configured for this deployment.', {
+      status: 503,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  }
+
   const incoming = new URL(request.url);
-  const target = BACKEND_URL + incoming.pathname + incoming.search;
+  const target = backendUrl + incoming.pathname + incoming.search;
 
   const headers = new Headers(request.headers);
   const secret = process.env.BACKEND_SHARED_SECRET;
@@ -27,4 +39,3 @@ export default async function middleware(request: Request): Promise<Response> {
 
   return fetch(target, init);
 }
-

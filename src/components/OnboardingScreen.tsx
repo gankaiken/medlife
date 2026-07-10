@@ -138,11 +138,12 @@ export function OnboardingScreen() {
           className="btn-plush ghost"
           style={{ visibility: step === 0 ? 'hidden' : 'visible' }}
           onClick={() => store.setOnboardingStep(step - 1)}
+          data-testid="onboarding-back"
         >
           ← Back
         </button>
         {step < CARDS.length - 1 ? (
-          <button type="button" className="btn-plush primary" onClick={() => store.setOnboardingStep(step + 1)}>
+          <button type="button" className="btn-plush primary" onClick={() => store.setOnboardingStep(step + 1)} data-testid="onboarding-next">
             Next →
           </button>
         ) : (
@@ -151,6 +152,7 @@ export function OnboardingScreen() {
             className="btn-plush primary breathe"
             style={{ fontSize: 20 }}
             onClick={() => store.finishOnboarding()}
+            data-testid="finish-onboarding"
           >
             Take me in →
           </button>
