@@ -36,6 +36,21 @@ export interface CaseTestResult {
   abnormal: boolean;
 }
 
+export interface AssessmentCompatibility {
+  correctDiagnosisDigest: string;
+  relevantHistoryQuestionIds: string[];
+  allowedHistoryFactIds: string[];
+  acceptableTreatmentIds: string[];
+  criticalTreatmentIds: string[];
+}
+
+export type CaseStatus = 'draft' | 'in_review' | 'approved' | 'retired' | 'development_only';
+export type ApprovalStatus =
+  | 'clinically_reviewed'
+  | 'clinical_review_required'
+  | 'retired'
+  | 'draft';
+
 export interface RubricCriterion {
   criterion_id: string;
   label: string;
@@ -53,6 +68,10 @@ export interface CaseRubric {
 
 export interface PatientCase {
   id: string;
+  caseVersion: string;
+  status: CaseStatus;
+  approvalStatus: ApprovalStatus;
+  reviewBanner: string;
   clinic: ClinicId;
   name: string;
   age: number;
@@ -75,9 +94,7 @@ export interface PatientCase {
   vitals: Vitals;
   testResults: CaseTestResult[];
   diagnosisOptions: string[];
-  correctDiagnosisId: string;
-  acceptableTreatmentIds: string[];
-  criticalTreatmentIds: string[];
+  assessmentCompatibility: AssessmentCompatibility;
   rubric?: CaseRubric;
 }
 
@@ -88,10 +105,51 @@ export interface Prescription {
 }
 
 export interface EncounterTranscriptTurn {
+  id: string;
   role: 'assistant' | 'user' | 'system';
   content: string;
-  source?: 'guided' | 'voice' | 'manual';
-  timestamp?: number;
+  source?: 'guided' | 'voice' | 'manual' | 'text_ai';
+  timestamp: number;
+  learnerMessageId?: string | null;
+  engine?: 'guided' | 'ai_text' | 'fallback_guided' | null;
+  disclosedFactIds?: string[];
+  verifiedDisclosedFactIds?: string[];
+  disclosureReceiptId?: string | null;
+}
+
+export type ConversationMode = 'guided' | 'text_ai';
+export type EvidenceIntegrityStatus =
+  | 'live_verified'
+  | 'server_verified'
+  | 'server_recorded_legacy_evidence'
+  | 'locally_restored'
+  | 'legacy_unverified'
+  | 'modified_or_invalid'
+  | 'pending_sync';
+
+export interface DisclosureReceipt {
+  receiptId: string;
+  encounterId: string;
+  learnerMessageId: string;
+  patientMessageId: string;
+  caseId: string;
+  caseVersion: string;
+  eligibleFactIds: string[];
+  verifiedDisclosedFactIds: string[];
+  historyDomainIds: string[];
+  conversationTurn: number;
+  engine: 'guided' | 'ai_text' | 'fallback_guided';
+  createdAt: number;
+  integrityDigest: string;
+  integritySource: 'backend' | 'guided';
+  status: 'verified' | 'fallback' | 'invalid';
+}
+
+export interface FallbackTransition {
+  from: ConversationMode;
+  to: ConversationMode;
+  reason: string;
+  timestamp: number;
 }
 
 export interface ActivePatient {
@@ -107,7 +165,13 @@ export interface ActivePatient {
   givenTreatmentIds: string[];
   prescriptions: Prescription[];
   submittedDiagnosisId: string | null;
+  conversationMode: ConversationMode;
+  conversationTurnCount: number;
+  failedConversationTurnIds: string[];
+  fallbackTransitions: FallbackTransition[];
   transcript: EncounterTranscriptTurn[];
+  disclosureReceipts: DisclosureReceipt[];
+  evidenceIntegrityStatus: EvidenceIntegrityStatus;
   completedAt?: number | null;
   endConfirm?: EndConfirmChecks | null;
 }

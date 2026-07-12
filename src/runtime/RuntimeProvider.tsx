@@ -23,6 +23,7 @@ interface RuntimeContextValue {
 
 const DEFAULT_CAPABILITIES: RuntimeCapabilities = {
   backend_available: false,
+  auth_available: false,
   ai_debrief_available: false,
   guided_mode_available: true,
   text_ai_patient_available: false,

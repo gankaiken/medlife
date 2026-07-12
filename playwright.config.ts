@@ -2,6 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './scripts/e2e',
+  testIgnore: ['**/*.real.spec.ts'],
+  globalSetup: './scripts/e2e/global-setup.ts',
+  globalTeardown: './scripts/e2e/global-teardown.ts',
   timeout: 120_000,
   fullyParallel: false,
   workers: 1,
@@ -17,11 +20,5 @@ export default defineConfig({
         '--ignore-gpu-blocklist',
       ],
     },
-  },
-  webServer: {
-    command: 'node scripts/e2e/serve-static.mjs --dir dist --port 4173',
-    url: 'http://127.0.0.1:4173',
-    reuseExistingServer: true,
-    timeout: 120_000,
   },
 });

@@ -1,0 +1,755 @@
+{
+  "schema_version": "medlife.case-registry.v1",
+  "cases": [
+    {
+      "case_id": "case-headache-001",
+      "case_version": "1.0.0",
+      "status": "development_only",
+      "created_date": "2026-07-10",
+      "updated_date": "2026-07-10",
+      "last_clinical_review_date": null,
+      "review_due_date": null,
+      "approval_status": "clinical_review_required",
+      "review_notes": [
+        "Technical prototype case suitable for development verification only.",
+        "Not clinically approved for supervised pilot deployment yet."
+      ],
+      "known_limitations": [
+        "Limited psychosocial depth.",
+        "No formal external reviewer sign-off yet."
+      ],
+      "authorship": {
+        "author": "Medlife educational prototype team",
+        "clinical_reviewer": null,
+        "reviewer_role": null
+      },
+      "educational_design": {
+        "learning_objectives": [
+          "Elicit focused headache chronology and red flags.",
+          "Differentiate tension-type headache from more serious causes.",
+          "Practice patient-centred concern exploration."
+        ],
+        "intended_learner_level": "senior medical student",
+        "specialty": "neurology",
+        "difficulty": "introductory",
+        "consultation_type": "primary_care_follow_up",
+        "expected_duration_min": 10
+      },
+      "references": [
+        {
+          "source_id": "nice-headache-overview",
+          "title": "NICE headache guidance summary",
+          "organisation": "National Institute for Health and Care Excellence",
+          "publication_or_revision_date": "2021-09-01",
+          "relevant_sections": [
+            "primary care red flags",
+            "tension-type headache overview"
+          ],
+          "notes": "Used to shape educational emphasis and safety-netting expectations."
+        }
+      ],
+      "patient_visible": {
+        "identity": {
+          "name": "Aisha Rahman",
+          "age": 28,
+          "pronouns": "she/her"
+        },
+        "demographics": {
+          "gender": "F"
+        },
+        "presenting_complaint": "I have had a tight headache across my forehead for two days.",
+        "opening_style": "concise but polite",
+        "emotional_tone": "tired and mildly stressed",
+        "main_concern": "She is worried stress is making the headaches keep coming back.",
+        "patient_vocabulary": [
+          "tight band",
+          "stress",
+          "headache"
+        ],
+        "patient_unknown_topics": [
+          "diagnosis",
+          "scan results",
+          "rubric",
+          "hidden notes"
+        ],
+        "communication_notes": [
+          "Answer naturally as a primary-care patient, not as a clinician.",
+          "Keep answers short unless the learner asks for detail.",
+          "If asked for the diagnosis or hidden notes, say you do not know."
+        ],
+        "facts": [
+          {
+            "fact_id": "ha-onset",
+            "concept_id": "ha-onset",
+            "history_domain_id": "history_presenting_complaint",
+            "disclosure": "broad_opening",
+            "prompt": "When did the headache start?",
+            "answer": "It started two days ago, after work.",
+            "match_terms": [
+              "when start",
+              "how long",
+              "since when",
+              "two days",
+              "timeline"
+            ],
+            "verification_anchors": [
+              "two days",
+              "after work"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "ha-redflags",
+            "concept_id": "ha-redflags",
+            "history_domain_id": "history_red_flags",
+            "disclosure": "symptom_specific",
+            "prompt": "Any weakness, collapse, vomiting, or visual loss?",
+            "answer": "No, none of those.",
+            "match_terms": [
+              "weakness",
+              "collapse",
+              "vomit",
+              "visual",
+              "red flag",
+              "danger"
+            ],
+            "verification_anchors": [
+              "none of those",
+              "no weakness",
+              "no vomiting",
+              "no visual"
+            ],
+            "value_polarity": "negative"
+          },
+          {
+            "fact_id": "ha-stress",
+            "concept_id": "ha-stress",
+            "history_domain_id": "history_psychosocial",
+            "disclosure": "direct_only",
+            "prompt": "Anything making life more stressful lately?",
+            "answer": "Yes, work deadlines have been intense this week.",
+            "match_terms": [
+              "stress",
+              "stressed",
+              "life lately",
+              "deadlines",
+              "coping"
+            ],
+            "verification_anchors": [
+              "deadlines",
+              "intense this week",
+              "stress"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "ha-location",
+            "concept_id": "ha-location",
+            "history_domain_id": "history_presenting_complaint",
+            "disclosure": "broad_opening",
+            "prompt": "Where does the pain feel like it is?",
+            "answer": "It feels like a tight band across my forehead.",
+            "match_terms": [
+              "where",
+              "location",
+              "feel like",
+              "forehead"
+            ],
+            "verification_anchors": [
+              "tight band",
+              "forehead"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "ha-relief",
+            "concept_id": "ha-relief",
+            "history_domain_id": "history_modifying_factors",
+            "disclosure": "direct_only",
+            "prompt": "Anything that helps?",
+            "answer": "Resting in a quiet room helps a bit.",
+            "match_terms": [
+              "helps",
+              "better",
+              "relief",
+              "rest"
+            ],
+            "verification_anchors": [
+              "quiet room",
+              "resting",
+              "helps a bit"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "ha-worry",
+            "concept_id": "ha-worry",
+            "history_domain_id": "history_ideas_concerns_expectations",
+            "disclosure": "sensitive_direct_only",
+            "prompt": "What worries you most about this?",
+            "answer": "I am worried stress is building up and I am not coping very well.",
+            "match_terms": [
+              "worried",
+              "concerned",
+              "worry",
+              "most about this"
+            ],
+            "verification_anchors": [
+              "not coping",
+              "stress is building up",
+              "worried"
+            ],
+            "value_polarity": "positive"
+          }
+        ]
+      },
+      "clinician_only": {
+        "correct_diagnosis_id": "tension_headache",
+        "correct_diagnosis_label": "Tension headache",
+        "differential_diagnoses": [
+          "migraine",
+          "subarachnoid_haemorrhage_red_flag_exclusion"
+        ],
+        "examination_findings": [
+          "No focal neurology.",
+          "Comfortable at rest."
+        ],
+        "investigation_findings": [
+          "Blood pressure normal.",
+          "Full blood count within normal limits."
+        ],
+        "management_expectations": {
+          "acceptable_treatment_ids": [
+            "advice-rest",
+            "paracetamol",
+            "safety-net-advice"
+          ],
+          "critical_treatment_ids": [
+            "safety-net-advice"
+          ]
+        },
+        "hidden_notes": [
+          "Stress trigger is an important clue.",
+          "No focal neurology.",
+          "No collapse, vomiting, or visual loss."
+        ],
+        "red_flags": [],
+        "rubric": {
+          "data_gathering": [
+            {
+              "criterion_id": "hx-focused",
+              "label": "Focused headache history",
+              "description": "Elicit timeline and red flags.",
+              "weight": 1
+            }
+          ],
+          "clinical_management": [
+            {
+              "criterion_id": "mgmt-core",
+              "label": "Appropriate tension headache plan",
+              "description": "Offer safe first-line management.",
+              "weight": 1
+            }
+          ],
+          "interpersonal": [
+            {
+              "criterion_id": "rapport",
+              "label": "Rapport and clarity",
+              "description": "Explain clearly and empathetically.",
+              "weight": 1
+            }
+          ]
+        },
+        "forbidden_terms": [
+          "tension headache",
+          "muscle contraction headache",
+          "headache rubric",
+          "hidden_notes",
+          "no focal neurology"
+        ]
+      }
+    },
+    {
+      "case_id": "case-anemia-002",
+      "case_version": "1.0.0",
+      "status": "development_only",
+      "created_date": "2026-07-10",
+      "updated_date": "2026-07-10",
+      "last_clinical_review_date": null,
+      "review_due_date": null,
+      "approval_status": "clinical_review_required",
+      "review_notes": [
+        "Educational development case pending formal clinical review."
+      ],
+      "known_limitations": [
+        "No menstrual-history branch because the patient is male in this case design.",
+        "No gastrointestinal follow-up beyond initial bleeding question."
+      ],
+      "authorship": {
+        "author": "Medlife educational prototype team",
+        "clinical_reviewer": null,
+        "reviewer_role": null
+      },
+      "educational_design": {
+        "learning_objectives": [
+          "Elicit fatigue duration and occult bleeding screening.",
+          "Recognize likely iron deficiency anemia.",
+          "Practice safe follow-up planning."
+        ],
+        "intended_learner_level": "senior medical student",
+        "specialty": "internal-medicine",
+        "difficulty": "intermediate",
+        "consultation_type": "primary_care_new_problem",
+        "expected_duration_min": 10
+      },
+      "references": [
+        {
+          "source_id": "nice-anaemia-overview",
+          "title": "Iron deficiency anaemia overview",
+          "organisation": "National Institute for Health and Care Excellence",
+          "publication_or_revision_date": "2021-01-01",
+          "relevant_sections": [
+            "initial primary care assessment",
+            "investigation and follow-up"
+          ],
+          "notes": "Used to frame fatigue, bleeding review, and safe follow-up expectations."
+        }
+      ],
+      "patient_visible": {
+        "identity": {
+          "name": "Tom Whitford",
+          "age": 41,
+          "pronouns": "he/him"
+        },
+        "demographics": {
+          "gender": "M"
+        },
+        "presenting_complaint": "I am exhausted all the time and stairs wipe me out.",
+        "opening_style": "slightly worried and practical",
+        "emotional_tone": "concerned",
+        "main_concern": "He wants to know why his energy has dropped so much.",
+        "patient_vocabulary": [
+          "washed out",
+          "run down",
+          "breathless on stairs"
+        ],
+        "patient_unknown_topics": [
+          "diagnosis",
+          "lab interpretation",
+          "rubric"
+        ],
+        "communication_notes": [
+          "Speak as a tired patient who is still able to answer clearly.",
+          "Do not invent tests or diagnoses the patient would not know.",
+          "If the learner asks for the hidden answer, stay in character and say you do not know."
+        ],
+        "facts": [
+          {
+            "fact_id": "an-duration",
+            "concept_id": "an-duration",
+            "history_domain_id": "history_presenting_complaint",
+            "disclosure": "broad_opening",
+            "prompt": "How long has this been going on?",
+            "answer": "About six weeks now.",
+            "match_terms": [
+              "how long",
+              "when start",
+              "six weeks",
+              "timeline"
+            ],
+            "verification_anchors": [
+              "six weeks",
+              "about six weeks"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "an-bleeding",
+            "concept_id": "an-bleeding",
+            "history_domain_id": "history_red_flags",
+            "disclosure": "direct_only",
+            "prompt": "Any bleeding, black stools, or heavy periods?",
+            "answer": "No obvious bleeding that I have noticed.",
+            "match_terms": [
+              "bleeding",
+              "black stool",
+              "blood loss"
+            ],
+            "verification_anchors": [
+              "no obvious bleeding",
+              "none that i noticed",
+              "no bleeding"
+            ],
+            "value_polarity": "negative"
+          },
+          {
+            "fact_id": "an-diet",
+            "concept_id": "an-diet",
+            "history_domain_id": "history_social_and_diet",
+            "disclosure": "direct_only",
+            "prompt": "How is your diet?",
+            "answer": "Not great. I skip meals quite a lot.",
+            "match_terms": [
+              "diet",
+              "eating",
+              "meals",
+              "nutrition"
+            ],
+            "verification_anchors": [
+              "skip meals",
+              "not great"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "an-breathless",
+            "concept_id": "an-breathless",
+            "history_domain_id": "history_associated_symptoms",
+            "disclosure": "broad_opening",
+            "prompt": "What happens when you exert yourself?",
+            "answer": "Stairs make me short of breath much faster than they used to.",
+            "match_terms": [
+              "breathless",
+              "stairs",
+              "exert",
+              "short of breath"
+            ],
+            "verification_anchors": [
+              "short of breath",
+              "stairs"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "an-concern",
+            "concept_id": "an-concern",
+            "history_domain_id": "history_ideas_concerns_expectations",
+            "disclosure": "sensitive_direct_only",
+            "prompt": "What are you worried this might be?",
+            "answer": "I am worried something serious is making me run down.",
+            "match_terms": [
+              "worried",
+              "concern",
+              "what do you think"
+            ],
+            "verification_anchors": [
+              "something serious",
+              "run down"
+            ],
+            "value_polarity": "positive"
+          }
+        ]
+      },
+      "clinician_only": {
+        "correct_diagnosis_id": "iron_deficiency_anemia",
+        "correct_diagnosis_label": "Iron deficiency anemia",
+        "differential_diagnoses": [
+          "anaemia_of_chronic_disease",
+          "depression_related_fatigue"
+        ],
+        "examination_findings": [
+          "Pale appearance.",
+          "Mild tachycardia."
+        ],
+        "investigation_findings": [
+          "Hb 9.4 g/dL with microcytosis.",
+          "Ferritin low."
+        ],
+        "management_expectations": {
+          "acceptable_treatment_ids": [
+            "oral-iron",
+            "diet-advice",
+            "follow-up-plan",
+            "safety-net-advice"
+          ],
+          "critical_treatment_ids": [
+            "follow-up-plan",
+            "safety-net-advice"
+          ]
+        },
+        "hidden_notes": [
+          "Microcytosis supports iron deficiency.",
+          "No overt bleeding reported."
+        ],
+        "red_flags": [
+          "Progressive exertional breathlessness"
+        ],
+        "rubric": {
+          "data_gathering": [
+            {
+              "criterion_id": "hx-anemia",
+              "label": "Focused anemia history",
+              "description": "Clarify fatigue and occult blood loss history.",
+              "weight": 1
+            }
+          ],
+          "clinical_management": [
+            {
+              "criterion_id": "mgmt-anemia",
+              "label": "Safe anemia plan",
+              "description": "Order tests and arrange follow-up.",
+              "weight": 1
+            }
+          ],
+          "interpersonal": [
+            {
+              "criterion_id": "rapport",
+              "label": "Rapport and clarity",
+              "description": "Explain clearly and empathetically.",
+              "weight": 1
+            }
+          ]
+        },
+        "forbidden_terms": [
+          "iron deficiency anemia",
+          "microcytosis",
+          "low ferritin",
+          "hidden_notes"
+        ]
+      }
+    },
+    {
+      "case_id": "case-cough-003",
+      "case_version": "1.0.0",
+      "status": "development_only",
+      "created_date": "2026-07-10",
+      "updated_date": "2026-07-10",
+      "last_clinical_review_date": null,
+      "review_due_date": null,
+      "approval_status": "clinical_review_required",
+      "review_notes": [
+        "Educational respiratory case pending formal review."
+      ],
+      "known_limitations": [
+        "No smoking-history branch yet.",
+        "Limited safety-net nuance."
+      ],
+      "authorship": {
+        "author": "Medlife educational prototype team",
+        "clinical_reviewer": null,
+        "reviewer_role": null
+      },
+      "educational_design": {
+        "learning_objectives": [
+          "Elicit focused pneumonia history.",
+          "Screen for breathlessness and sputum features.",
+          "Practice recognizing urgent but ambulatory respiratory illness."
+        ],
+        "intended_learner_level": "senior medical student",
+        "specialty": "pulmonology",
+        "difficulty": "intermediate",
+        "consultation_type": "primary_care_acute_problem",
+        "expected_duration_min": 10
+      },
+      "references": [
+        {
+          "source_id": "nice-pneumonia-overview",
+          "title": "Community-acquired pneumonia overview",
+          "organisation": "National Institute for Health and Care Excellence",
+          "publication_or_revision_date": "2023-01-01",
+          "relevant_sections": [
+            "adult outpatient assessment",
+            "red flag symptoms"
+          ],
+          "notes": "Used to shape symptom prompts and urgency framing."
+        }
+      ],
+      "patient_visible": {
+        "identity": {
+          "name": "Leila Haddad",
+          "age": 34,
+          "pronouns": "she/her"
+        },
+        "demographics": {
+          "gender": "F"
+        },
+        "presenting_complaint": "I have had a fever and cough for four days and my chest hurts when I breathe in.",
+        "opening_style": "short of breath but able to answer in sentences",
+        "emotional_tone": "feeling unwell",
+        "main_concern": "She wants relief from the fever and is worried the pain is getting worse.",
+        "patient_vocabulary": [
+          "sharp when i breathe in",
+          "yellow sputum",
+          "fever"
+        ],
+        "patient_unknown_topics": [
+          "chest x-ray result",
+          "diagnosis",
+          "rubric"
+        ],
+        "communication_notes": [
+          "Speak like a sick but cooperative outpatient.",
+          "Keep the story internally consistent across turns.",
+          "Do not reveal scan results or diagnosis unless the patient could realistically know them."
+        ],
+        "facts": [
+          {
+            "fact_id": "cap-duration",
+            "concept_id": "cap-duration",
+            "history_domain_id": "history_presenting_complaint",
+            "disclosure": "broad_opening",
+            "prompt": "How long have you had the fever and cough?",
+            "answer": "Around four days.",
+            "match_terms": [
+              "how long",
+              "when start",
+              "four days",
+              "timeline"
+            ],
+            "verification_anchors": [
+              "four days",
+              "around four days"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "cap-sputum",
+            "concept_id": "cap-sputum",
+            "history_domain_id": "history_associated_symptoms",
+            "disclosure": "symptom_specific",
+            "prompt": "Any sputum or blood when you cough?",
+            "answer": "Yellow sputum, but no blood.",
+            "match_terms": [
+              "sputum",
+              "phlegm",
+              "blood",
+              "cough up"
+            ],
+            "verification_anchors": [
+              "yellow sputum",
+              "no blood"
+            ],
+            "value_polarity": "mixed"
+          },
+          {
+            "fact_id": "cap-breathless",
+            "concept_id": "cap-breathless",
+            "history_domain_id": "history_red_flags",
+            "disclosure": "direct_only",
+            "prompt": "Are you short of breath?",
+            "answer": "A bit on stairs, but not sitting still.",
+            "match_terms": [
+              "short of breath",
+              "breathless",
+              "stairs",
+              "rest"
+            ],
+            "verification_anchors": [
+              "on stairs",
+              "not sitting still",
+              "not at rest"
+            ],
+            "value_polarity": "mixed"
+          },
+          {
+            "fact_id": "cap-pleuritic",
+            "concept_id": "cap-pleuritic",
+            "history_domain_id": "history_presenting_complaint",
+            "disclosure": "broad_opening",
+            "prompt": "What does the chest pain feel like?",
+            "answer": "It is sharp when I take a deep breath in.",
+            "match_terms": [
+              "chest pain",
+              "breathe in",
+              "sharp",
+              "deep breath"
+            ],
+            "verification_anchors": [
+              "sharp",
+              "deep breath",
+              "breathe in"
+            ],
+            "value_polarity": "positive"
+          },
+          {
+            "fact_id": "cap-concern",
+            "concept_id": "cap-concern",
+            "history_domain_id": "history_ideas_concerns_expectations",
+            "disclosure": "sensitive_direct_only",
+            "prompt": "What worries you most?",
+            "answer": "I am worried the fever is turning into something more serious.",
+            "match_terms": [
+              "worried",
+              "concern",
+              "what worries you"
+            ],
+            "verification_anchors": [
+              "something more serious",
+              "worried"
+            ],
+            "value_polarity": "positive"
+          }
+        ]
+      },
+      "clinician_only": {
+        "correct_diagnosis_id": "community_acquired_pneumonia",
+        "correct_diagnosis_label": "Community-acquired pneumonia",
+        "differential_diagnoses": [
+          "viral_lower_respiratory_infection",
+          "pulmonary_embolism_red_flag_exclusion"
+        ],
+        "examination_findings": [
+          "Mild tachypnoea.",
+          "Fever."
+        ],
+        "investigation_findings": [
+          "Chest x-ray: right lower zone infiltrate.",
+          "CRP elevated."
+        ],
+        "management_expectations": {
+          "acceptable_treatment_ids": [
+            "oral-antibiotics",
+            "fluids-advice",
+            "follow-up-plan",
+            "safety-net-advice"
+          ],
+          "critical_treatment_ids": [
+            "safety-net-advice",
+            "follow-up-plan"
+          ]
+        },
+        "hidden_notes": [
+          "Pleuritic pain is a useful clue.",
+          "CXR supports pneumonia."
+        ],
+        "red_flags": [
+          "Pleuritic chest pain",
+          "Fever with cough"
+        ],
+        "rubric": {
+          "data_gathering": [
+            {
+              "criterion_id": "hx-cap",
+              "label": "Focused respiratory history",
+              "description": "Clarify duration, sputum, and breathlessness.",
+              "weight": 1
+            }
+          ],
+          "clinical_management": [
+            {
+              "criterion_id": "mgmt-cap",
+              "label": "Safe pneumonia plan",
+              "description": "Recognise urgency and give appropriate advice.",
+              "weight": 1
+            }
+          ],
+          "interpersonal": [
+            {
+              "criterion_id": "rapport",
+              "label": "Rapport and clarity",
+              "description": "Explain clearly and empathetically.",
+              "weight": 1
+            }
+          ]
+        },
+        "forbidden_terms": [
+          "community-acquired pneumonia",
+          "pneumonia",
+          "right lower zone infiltrate",
+          "crp elevated",
+          "hidden_notes"
+        ]
+      }
+    }
+  ]
+}

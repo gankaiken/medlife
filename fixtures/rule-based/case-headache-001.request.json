@@ -90,7 +90,16 @@
       { "medication_id": "paracetamol-tablets", "dose": "1 g PO", "duration": "PRN for 3 days" }
     ],
     "transcript": [
-      { "role": "assistant", "content": "Hi doctor, I have a headache.", "source": "guided" }
+      {
+        "id": "guided-opening-1",
+        "role": "assistant",
+        "content": "Hi doctor, I have a headache.",
+        "source": "guided",
+        "timestamp": 1720603200000,
+        "learnerMessageId": null,
+        "engine": "guided",
+        "disclosedFactIds": []
+      }
     ],
     "results_opened": ["bp-check", "fbc"],
     "end_confirm": { "sum": true, "safe": true, "ice": false },

@@ -9,13 +9,13 @@ from unittest.mock import patch
 
 os.environ.setdefault("EHR_API_TOKEN", "test-token")
 
-_BACKEND_DIR = Path(__file__).resolve().parents[1]
-if str(_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_DIR))
+_ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-import server  # noqa: E402
+from backend import server  # noqa: E402
 
 
 def sample_debrief_request() -> dict:
@@ -98,7 +98,16 @@ def sample_debrief_request() -> dict:
                 {"medication_id": "paracetamol-tablets", "dose": "1 g PO", "duration": "PRN for 3 days"}
             ],
             "transcript": [
-                {"role": "assistant", "content": "Hi doctor, I have a headache.", "source": "guided"}
+                {
+                    "id": "guided-opening-1",
+                    "role": "assistant",
+                    "content": "Hi doctor, I have a headache.",
+                    "source": "guided",
+                    "timestamp": 1720603200000,
+                    "learnerMessageId": None,
+                    "engine": "guided",
+                    "disclosedFactIds": [],
+                }
             ],
             "results_opened": ["bp-check"],
             "end_confirm": {"sum": True, "safe": True, "ice": False},
@@ -123,7 +132,8 @@ class Round1ContractTests(unittest.TestCase):
         resp = self.client.get("/agent/capabilities")
         self.assertEqual(resp.status_code, 200)
         body = resp.json()
-        self.assertEqual(body["persistence_mode"], "local_storage")
+        self.assertEqual(body["persistence_mode"], "server_session_sqlite")
+        self.assertTrue(body["auth_available"])
         self.assertFalse(body["live_voice_usable"])
 
     def test_valid_debrief_request_returns_rule_based_without_key(self) -> None:
@@ -187,7 +197,16 @@ class Round1ContractTests(unittest.TestCase):
     def test_oversized_transcript_rejected(self) -> None:
         request = sample_debrief_request()
         request["encounter_log"]["transcript"] = [
-            {"role": "assistant", "content": "x" * (server.MAX_TRANSCRIPT_CHARS + 1), "source": "guided"}
+            {
+                "id": "oversized-1",
+                "role": "assistant",
+                "content": "x" * (server.MAX_TRANSCRIPT_CHARS + 1),
+                "source": "guided",
+                "timestamp": 1720603200000,
+                "learnerMessageId": None,
+                "engine": "guided",
+                "disclosedFactIds": [],
+            }
         ]
         resp = self.client.post("/agent/debrief", json=request)
         self.assertEqual(resp.status_code, 413)

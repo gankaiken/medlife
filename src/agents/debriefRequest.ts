@@ -7,10 +7,13 @@
 import type {
   ActivePatient,
   CaseRubric,
+  ConversationMode,
+  DisclosureReceipt,
   EndConfirmChecks,
   PatientCase,
   RubricCriterion,
 } from '../game/types.ts';
+import { computeDiagnosisDigest } from './disclosureReceipts.ts';
 import { getRubricFor } from '../data/autoRubric.ts';
 import {
   GUIDELINES,
@@ -26,7 +29,8 @@ export interface DebriefRequest {
   case_id: string;
   case_summary: {
     chief_complaint: string;
-    correct_diagnosis_id: string;
+    case_version: string;
+    correct_diagnosis_digest: string;
     diagnosis_options: string[];
     severity: string;
     age: number;
@@ -34,6 +38,7 @@ export interface DebriefRequest {
   };
   case_expectations: {
     relevant_history_question_ids: string[];
+    allowed_history_fact_ids: string[];
     acceptable_treatment_ids: string[];
     critical_treatment_ids: string[];
   };
@@ -78,12 +83,29 @@ export interface DebriefRequest {
       dose: string;
       duration: string;
     }>;
+    conversation_mode: ConversationMode;
+    disclosed_fact_ids?: string[];
+    disclosure_receipts: DisclosureReceipt[];
+    failed_conversation_turn_ids: string[];
+    fallback_transitions: Array<{
+      from: ConversationMode;
+      to: ConversationMode;
+      reason: string;
+      timestamp: number;
+    }>;
     transcript: Array<{
+      id: string;
       role: 'assistant' | 'user' | 'system';
       content: string;
-      source?: 'guided' | 'voice' | 'manual';
-      timestamp?: number;
+      source?: 'guided' | 'voice' | 'manual' | 'text_ai';
+      timestamp: number;
+      learnerMessageId?: string | null;
+      engine?: 'guided' | 'ai_text' | 'fallback_guided' | null;
+      disclosedFactIds?: string[];
+      verifiedDisclosedFactIds?: string[];
+      disclosureReceiptId?: string | null;
     }>;
+    evidence_integrity_status: ActivePatient['evidenceIntegrityStatus'];
     results_opened: string[];
     end_confirm: EndConfirmChecks | null;
     submitted_diagnosis_id: string | null;
@@ -129,7 +151,7 @@ export function buildDebriefRequest(
   });
 
   const treatmentById = new Map(TREATMENTS.map((t) => [t.id, t]));
-  const criticalSet = new Set(c.criticalTreatmentIds);
+  const criticalSet = new Set(c.assessmentCompatibility.criticalTreatmentIds);
   const treatments_given = patient.givenTreatmentIds.map((tid) => ({
     treatment_id: tid,
     treatment_name: treatmentById.get(tid)?.name ?? tid,
@@ -147,16 +169,18 @@ export function buildDebriefRequest(
     case_id: c.id,
     case_summary: {
       chief_complaint: c.chiefComplaint,
-      correct_diagnosis_id: c.correctDiagnosisId,
+      case_version: c.caseVersion,
+      correct_diagnosis_digest: c.assessmentCompatibility.correctDiagnosisDigest,
       diagnosis_options: c.diagnosisOptions,
       severity: c.severity,
       age: c.age,
       gender: c.gender,
     },
     case_expectations: {
-      relevant_history_question_ids: c.anamnesis.filter((item) => item.relevant).map((item) => item.id),
-      acceptable_treatment_ids: c.acceptableTreatmentIds,
-      critical_treatment_ids: c.criticalTreatmentIds,
+      relevant_history_question_ids: c.assessmentCompatibility.relevantHistoryQuestionIds,
+      allowed_history_fact_ids: c.assessmentCompatibility.allowedHistoryFactIds,
+      acceptable_treatment_ids: c.assessmentCompatibility.acceptableTreatmentIds,
+      critical_treatment_ids: c.assessmentCompatibility.criticalTreatmentIds,
     },
     rubric,
     registry_slice,
@@ -168,14 +192,19 @@ export function buildDebriefRequest(
       tests_ordered,
       treatments_given,
       prescriptions,
+      conversation_mode: patient.conversationMode,
+      disclosure_receipts: patient.disclosureReceipts.map((item) => ({ ...item })),
+      failed_conversation_turn_ids: patient.failedConversationTurnIds.slice(),
+      fallback_transitions: patient.fallbackTransitions.map((item) => ({ ...item })),
       transcript: patient.transcript.slice(),
+      evidence_integrity_status: patient.evidenceIntegrityStatus,
       results_opened: patient.viewedResultIds.slice(),
       end_confirm: patient.endConfirm ?? null,
       submitted_diagnosis_id: patient.submittedDiagnosisId,
       diagnosis_was_correct:
         patient.submittedDiagnosisId === null
           ? null
-          : patient.submittedDiagnosisId === c.correctDiagnosisId,
+          : computeDiagnosisDigest(patient.submittedDiagnosisId) === c.assessmentCompatibility.correctDiagnosisDigest,
     },
   };
 }

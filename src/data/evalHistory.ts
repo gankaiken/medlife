@@ -1,5 +1,6 @@
 import type { ActivePatient } from '../game/types';
 import type { CaseEvaluationInput } from '../agents/customTools';
+import { classifyEvidenceIntegrity } from '../agents/disclosureReceipts.ts';
 
 export type AssessmentEngine = 'ai' | 'rule_based' | 'saved' | 'unavailable';
 
@@ -16,6 +17,7 @@ export interface EvalHistoryEntry {
   verdict: string;
   engine: AssessmentEngine;
   evaluation: CaseEvaluationInput;
+  integrityStatus: ActivePatient['evidenceIntegrityStatus'];
   patientSnapshot?: ActivePatient | null;
 }
 
@@ -79,6 +81,19 @@ function normalizeEntry(raw: unknown): EvalHistoryEntry | null {
       ? item.patientName
       : caseName;
 
+  const patientSnapshot = (item.patientSnapshot as ActivePatient | null | undefined) ?? null;
+  const storedIntegrity = item.integrityStatus;
+  const integrityStatus =
+    storedIntegrity === 'live_verified' ||
+    storedIntegrity === 'server_verified' ||
+    storedIntegrity === 'server_recorded_legacy_evidence' ||
+    storedIntegrity === 'locally_restored' ||
+    storedIntegrity === 'legacy_unverified' ||
+    storedIntegrity === 'modified_or_invalid' ||
+    storedIntegrity === 'pending_sync'
+      ? storedIntegrity
+      : classifyEvidenceIntegrity(patientSnapshot);
+
   return {
     id,
     encounterId,
@@ -92,7 +107,9 @@ function normalizeEntry(raw: unknown): EvalHistoryEntry | null {
     verdict,
     engine,
     evaluation,
-    patientSnapshot: (item.patientSnapshot as ActivePatient | null | undefined) ?? null,
+    integrityStatus:
+      integrityStatus === 'live_verified' ? 'locally_restored' : integrityStatus,
+    patientSnapshot,
   };
 }
 
@@ -162,6 +179,9 @@ export const localEvalHistoryRepository: EvalHistoryRepository = {
       encounterId: entry.encounterId ?? entry.id ?? `enc-${Date.now()}`,
       savedAt: entry.savedAt ?? new Date().toISOString(),
       patientName: entry.patientName ?? entry.caseName,
+      integrityStatus:
+        entry.integrityStatus ??
+        (entry.patientSnapshot ? entry.patientSnapshot.evidenceIntegrityStatus : 'legacy_unverified'),
     };
     const next = [complete, ...readAll().filter((item) => item.id !== complete.id)];
     writeAll(next);

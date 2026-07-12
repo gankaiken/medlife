@@ -7,6 +7,7 @@ test('interaction mode falls back to offline when backend is unreachable', () =>
   const label = getInteractionModeLabel(
     {
       backend_available: false,
+      auth_available: false,
       ai_debrief_available: false,
       guided_mode_available: true,
       text_ai_patient_available: false,
@@ -26,6 +27,7 @@ test('interaction mode stays guided when backend is reachable and no live AI pat
   const label = getInteractionModeLabel(
     {
       backend_available: true,
+      auth_available: true,
       ai_debrief_available: true,
       guided_mode_available: true,
       text_ai_patient_available: false,
@@ -45,6 +47,7 @@ test('interaction mode only advertises live voice when learner-facing voice is u
   const label = getInteractionModeLabel(
     {
       backend_available: true,
+      auth_available: true,
       ai_debrief_available: true,
       guided_mode_available: true,
       text_ai_patient_available: false,
@@ -64,6 +67,7 @@ test('debrief mode label reports text AI when backend AI is available', () => {
   const label = getDebriefModeLabel(
     {
       backend_available: true,
+      auth_available: true,
       ai_debrief_available: true,
       guided_mode_available: true,
       text_ai_patient_available: false,
@@ -83,6 +87,7 @@ test('debrief mode label reports fallback mode when backend AI is unavailable', 
   const label = getDebriefModeLabel(
     {
       backend_available: true,
+      auth_available: true,
       ai_debrief_available: false,
       guided_mode_available: true,
       text_ai_patient_available: false,

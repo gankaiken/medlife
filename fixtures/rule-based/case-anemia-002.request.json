@@ -89,7 +89,16 @@
     "treatments_given": [],
     "prescriptions": [],
     "transcript": [
-      { "role": "assistant", "content": "I feel washed out.", "source": "guided" }
+      {
+        "id": "guided-opening-1",
+        "role": "assistant",
+        "content": "I feel washed out.",
+        "source": "guided",
+        "timestamp": 1720603200000,
+        "learnerMessageId": null,
+        "engine": "guided",
+        "disclosedFactIds": []
+      }
     ],
     "results_opened": ["fbc", "ferritin"],
     "end_confirm": { "sum": false, "safe": false, "ice": false },

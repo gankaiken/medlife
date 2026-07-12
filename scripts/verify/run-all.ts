@@ -4,9 +4,11 @@
  * (eventually) by the /loop routine.
  */
 
+import { verifyClientBoundary } from './client-boundary.ts';
 import { verifyDataIntegrity } from './data-integrity.ts';
 import { verifyTriagePriority } from './triage-priority.ts';
 import { verifyRubricCitations } from './rubric-smoke.ts';
+import '../validate-cases.ts';
 
 type Violation = { case: string; rule: string; detail: string };
 
@@ -14,6 +16,7 @@ const checks: Array<{ name: string; run: () => Violation[] }> = [
   { name: 'data-integrity', run: verifyDataIntegrity },
   { name: 'triage-priority', run: verifyTriagePriority },
   { name: 'rubric-citations', run: verifyRubricCitations },
+  { name: 'client-boundary-source', run: () => verifyClientBoundary({ sourceOnly: true }) },
 ];
 
 let totalViolations = 0;

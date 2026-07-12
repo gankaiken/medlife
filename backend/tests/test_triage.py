@@ -28,14 +28,14 @@ from unittest.mock import MagicMock
 os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-api03-test-dummy")
 os.environ.setdefault("EHR_API_TOKEN", "test-token-not-relevant-here")
 
-_BACKEND_DIR = Path(__file__).resolve().parents[1]
-if str(_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_DIR))
+_ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
 from fastapi import HTTPException  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
-import server  # noqa: E402
+from backend import server  # noqa: E402
 
 
 def _fake_message(text: str) -> SimpleNamespace:

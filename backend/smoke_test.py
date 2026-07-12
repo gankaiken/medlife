@@ -113,8 +113,8 @@ def main() -> int:
     reporter.check("GET /health returns 200", status == 200, f"status={status}")
     reporter.check("health response is JSON", isinstance(body, dict), str(body))
     if isinstance(body, dict):
-        reporter.check("health exposes backend flag", "backend" in body, str(body))
-        reporter.check("health exposes persistence_mode", body.get("persistence_mode") == "local_storage", str(body))
+        reporter.check("health exposes backend flag", "backend_available" in body, str(body))
+        reporter.check("health exposes persistence_mode", body.get("persistence_mode") == "server_session_sqlite", str(body))
 
     status, body = _request("GET", "/agent/capabilities")
     reporter.check("GET /agent/capabilities returns 200", status == 200, f"status={status}")

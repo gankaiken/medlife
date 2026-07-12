@@ -5,10 +5,14 @@ import {
   listEvalHistory,
   deleteEvalHistory,
   getEvalHistoryHealth,
+  saveEvalHistory,
   type EvalHistoryEntry,
 } from '../data/evalHistory';
 import { useRuntime, getInteractionModeLabel } from '../runtime/RuntimeProvider';
 import { getDebriefModeLabel } from '../runtime/mode';
+import { useAuth } from '../runtime/AuthProvider';
+import { useEncounterSync } from '../runtime/EncounterSyncProvider';
+import { deleteServerEncounter, mapServerAttemptToEvalHistoryEntry, type EncounterAttempt } from '../agents/accountApi';
 
 const VERDICT_COLOR: Record<EvalHistoryEntry['verdict'], string> = {
   excellent: 'var(--mint)',
@@ -145,22 +149,52 @@ function computeStats(history: EvalHistoryEntry[]): TrainingStats {
   return { count, avgRating, domains, weakest, streakDays };
 }
 
+const authInputStyle: React.CSSProperties = {
+  width: '100%',
+  border: '3px solid var(--line)',
+  borderRadius: 12,
+  padding: '10px 12px',
+  fontFamily: 'inherit',
+  fontSize: 14,
+  fontWeight: 700,
+  background: 'white',
+  color: 'var(--ink)',
+};
+
 export function HomeScreen() {
   const tweaks = useTweaks();
   const { capabilities, backendReachable } = useRuntime();
+  const { session, serverAttempts, progress, login, register, logout, exportData, migrateLocalHistory, migrationAvailable, loading: authLoading, sessionNotice, refresh: refreshAuth } = useAuth();
+  const { syncState, pendingCount, retrySync, hydrateFromServerAttempt } = useEncounterSync();
   const [history, setHistory] = useState<EvalHistoryEntry[]>([]);
   const [historyHealth, setHistoryHealth] = useState(getEvalHistoryHealth());
+  const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [password, setPassword] = useState('');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authError, setAuthError] = useState<string | null>(null);
 
   const refresh = () => {
-    setHistory(listEvalHistory());
+    const local = listEvalHistory();
+    const remote = session?.authenticated
+      ? serverAttempts
+          .map((attempt) => mapServerAttemptToEvalHistoryEntry(attempt))
+          .filter((item): item is EvalHistoryEntry => item !== null)
+      : [];
+    setHistory(session?.authenticated ? remote : local);
     setHistoryHealth(getEvalHistoryHealth());
   };
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [session?.authenticated, serverAttempts]);
 
-  const onDelete = (id: string) => {
+  const onDelete = async (id: string) => {
+    if (session?.authenticated) {
+      await deleteServerEncounter(id);
+      await refreshAuth();
+      return;
+    }
     deleteEvalHistory(id);
     refresh();
   };
@@ -168,6 +202,37 @@ export function HomeScreen() {
   const stats = computeStats(history);
   const interactionMode = getInteractionModeLabel(capabilities, backendReachable);
   const debriefMode = getDebriefModeLabel(capabilities, backendReachable);
+  const inProgress = session?.authenticated
+    ? serverAttempts.filter((attempt) => attempt.status === 'in_progress')
+    : [];
+
+  const submitAuth = async () => {
+    setAuthError(null);
+    try {
+      if (authMode === 'login') {
+        await login({ email, password });
+      } else {
+        await register({ email, password, display_name: displayName || 'Medlife learner' });
+      }
+      setPassword('');
+    } catch (error) {
+      const raw = error instanceof Error ? error.message : String(error);
+      setAuthError(
+        raw === 'invalid email or password'
+          ? 'Sign-in failed. Check your email and password and try again.'
+          : raw === 'registration unavailable'
+            ? 'That account could not be created with the current details.'
+            : raw === 'too many login attempts'
+              ? 'Too many sign-in attempts just now. Please pause and try again shortly.'
+              : raw,
+      );
+    }
+  };
+
+  const openReview = (entry: EvalHistoryEntry) => {
+    saveEvalHistory(entry);
+    store.viewEvalHistory(entry.id);
+  };
 
   return (
     <div
@@ -194,6 +259,10 @@ export function HomeScreen() {
               <span className="chip mint">{interactionMode}</span>
               <span className="chip sky">{debriefMode}</span>
               <span className="chip">{backendReachable ? 'Backend reachable' : 'Backend unavailable'}</span>
+              <span className="chip">{session?.authenticated ? 'Signed in' : 'Signed out'}</span>
+              <span className={`chip ${syncState === 'pending_sync' ? 'peach' : syncState === 'saved' ? 'mint' : 'butter'}`}>
+                {syncState === 'pending_sync' ? `Pending sync ${pendingCount}` : syncState === 'saved' ? 'Server saved' : 'Local cache'}
+              </span>
               <span className="chip">
                 {capabilities.voice_backend_configured ? 'Voice backend configured' : 'Voice backend unavailable'}
               </span>
@@ -230,6 +299,71 @@ export function HomeScreen() {
               Medlife is a clinical education simulator. Cases are synthetic or educational, and any AI feedback may be imperfect.
               It does not provide medical advice or replace qualified supervision.
             </div>
+          </div>
+
+          <div className="plush" style={{ padding: 16, background: session?.authenticated ? 'var(--mint)' : 'white' }} data-testid="auth-panel">
+            {session?.authenticated ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: 18 }}>{session.user?.display_name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)' }}>{session.user?.email}</div>
+                  <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700 }}>
+                    Server-backed history and progress are active for this learner account.
+                  </div>
+                  <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
+                    Export is available. Account deletion is still unavailable in this training build.
+                  </div>
+                  {sessionNotice && <div style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: 'var(--rose-deep)' }}>{sessionNotice}</div>}
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {migrationAvailable && (
+                    <button
+                      type="button"
+                      className="btn-plush ghost"
+                      onClick={() => {
+                        if (window.confirm('Import your anonymous local Medlife history into this account? Imported records keep their legacy integrity labels.')) {
+                          void migrateLocalHistory();
+                        }
+                      }}
+                      data-testid="migrate-local-history"
+                    >
+                      Import local history
+                    </button>
+                  )}
+                  <button type="button" className="btn-plush ghost" onClick={() => void exportData()} data-testid="export-account-data">
+                    Export data
+                  </button>
+                  {syncState === 'pending_sync' && (
+                    <button type="button" className="btn-plush ghost" onClick={() => void retrySync()} data-testid="retry-sync">
+                      Retry sync ({pendingCount})
+                    </button>
+                  )}
+                  <button type="button" className="btn-plush ghost" onClick={() => void logout()} data-testid="logout-button">
+                    Log out
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <span className={`chip ${authMode === 'login' ? 'butter' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setAuthMode('login')}>Login</span>
+                  <span className={`chip ${authMode === 'register' ? 'butter' : ''}`} style={{ cursor: 'pointer' }} onClick={() => setAuthMode('register')}>Register</span>
+                  <span className="chip">Signed-out local mode stays available</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: authMode === 'register' ? '1fr 1fr 1fr auto' : '1fr 1fr auto', gap: 8 }}>
+                  {authMode === 'register' && (
+                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Display name" data-testid="register-display-name" style={authInputStyle} />
+                  )}
+                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" data-testid="auth-email" style={authInputStyle} />
+                  <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" data-testid="auth-password" style={authInputStyle} />
+                  <button type="button" className="btn-plush primary" onClick={() => void submitAuth()} disabled={authLoading} data-testid={authMode === 'login' ? 'login-button' : 'register-button'}>
+                    {authMode === 'login' ? 'Login' : 'Create account'}
+                  </button>
+                </div>
+                {sessionNotice && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--rose-deep)' }}>{sessionNotice}</div>}
+                {authError && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--rose-deep)' }}>{authError}</div>}
+              </div>
+            )}
           </div>
 
           {historyHealth.message && (
@@ -341,7 +475,7 @@ export function HomeScreen() {
                   type="button"
                   className="btn-plush primary"
                   style={{ fontSize: 15, padding: '14px 18px' }}
-                  onClick={() => store.viewEvalHistory(history[0].id)}
+                  onClick={() => openReview(history[0])}
                   data-testid="open-latest-review"
                 >
                   Open review
@@ -359,6 +493,55 @@ export function HomeScreen() {
           >
             Start a new case
           </button>
+
+          {session?.authenticated && inProgress.length > 0 && (
+            <div className="plush" style={{ padding: 16 }} data-testid="resume-attempts">
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 12,
+                  color: 'var(--ink-2)',
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  marginBottom: 10,
+                }}
+              >
+                Resume saved encounters
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {inProgress.map((attempt) => (
+                  <div
+                    key={String(attempt.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      background: 'var(--cream)',
+                      border: '2.5px solid var(--line)',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 800 }}>{String(attempt.case_name ?? attempt.case_id)}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
+                        Last activity {relativeDate(String(attempt.last_activity_at))}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-plush ghost"
+                      onClick={() => hydrateFromServerAttempt(attempt)}
+                      data-testid={`resume-attempt-${String(attempt.id)}`}
+                    >
+                      Resume
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <button
             type="button"
@@ -480,7 +663,7 @@ export function HomeScreen() {
                     >
                       <div
                         className="tap"
-                        onClick={() => store.viewEvalHistory(r.id)}
+                        onClick={() => openReview(r)}
                         style={{
                           width: 36,
                           height: 36,
@@ -491,7 +674,7 @@ export function HomeScreen() {
                           cursor: 'pointer',
                         }}
                       />
-                      <div className="tap" onClick={() => store.viewEvalHistory(r.id)} style={{ cursor: 'pointer' }}>
+                      <div className="tap" onClick={() => openReview(r)} style={{ cursor: 'pointer' }}>
                         <div style={{ fontWeight: 800, fontSize: 14 }}>
                           {r.caseName} <span style={{ fontWeight: 600, color: 'var(--ink-2)' }}>· {r.caseAge}{r.caseGender}</span>
                         </div>
@@ -501,7 +684,7 @@ export function HomeScreen() {
                       </div>
                       <span
                         className="tap chip"
-                        onClick={() => store.viewEvalHistory(r.id)}
+                        onClick={() => openReview(r)}
                         style={{ background: color, fontSize: 11, cursor: 'pointer' }}
                       >
                         {VERDICT_LABEL[r.verdict]}
@@ -513,7 +696,9 @@ export function HomeScreen() {
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (window.confirm(`Delete review for ${r.caseName}?`)) onDelete(r.id);
+                          if (window.confirm(`Delete review for ${r.caseName}?`)) {
+                            void onDelete(r.id);
+                          }
                         }}
                         title="Delete this review"
                         style={{
@@ -553,7 +738,11 @@ export function HomeScreen() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <Stat big={stats.count > 0 ? String(stats.count) : '-'} sub="cases done" />
-              <Stat big={stats.count > 0 ? stats.avgRating.toFixed(1) : '-'} sub="avg rating" out={stats.count > 0 ? ' / 5' : ''} />
+              <Stat
+                big={session?.authenticated && progress ? String(progress.attempts_completed) : stats.count > 0 ? stats.avgRating.toFixed(1) : '-'}
+                sub={session?.authenticated && progress ? 'server attempts' : 'avg rating'}
+                out={session?.authenticated && progress ? '' : stats.count > 0 ? ' / 5' : ''}
+              />
             </div>
             <div
               style={{

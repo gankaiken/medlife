@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { store, useGameState, POLYCLINIC_BED_INDEX } from '../game/store';
+import { store, useGameState } from '../game/store';
 import { TESTS, TEST_PANELS, testById } from '../data/tests';
 import { getTestReport } from '../data/defaultTestResults';
 import { getImagingExamples } from '../data/radiologyImages';
 import { POLYCLINIC_DIAGNOSIS_LABELS, getCaseSpecialty } from '../data/polyclinicPatients';
 import { MEDICATIONS, CATEGORY_LABELS, SPECIALTY_MEDICATION_CATEGORIES, medicationById, type Medication, type MedicationCategory } from '../data/medications';
 import { CLINIC_LABELS } from '../game/clinic';
-import { getExistingConversation, getOrCreatePatientConversation } from '../voice/conversationStore';
-import type { ChatMessage } from '../voice/claude';
 import { getDiagnosisSelectionMessage } from './diagnosisState';
+import { useRuntime } from '../runtime/RuntimeProvider';
+import {
+  MAX_LEARNER_MESSAGE_CHARS,
+  buildPatientRespondRequest,
+  createLearnerMessageId,
+  getConversationModeLabel,
+  requestPatientReply,
+  shouldAcceptPatientResponse,
+} from '../agents/patientConversationApi';
+import type { ActivePatient, ConversationMode, DisclosureReceipt, EncounterTranscriptTurn } from '../game/types';
 
 type Tab = 'history' | 'chat' | 'tests' | 'results' | 'diagnose' | 'rx';
 
@@ -22,6 +30,7 @@ const diagLabel = (id: string): string =>
 
 export function ExamineOverlay({ onClose, onDispatch }: Props) {
   const state = useGameState();
+  const { capabilities, backendReachable } = useRuntime();
   const patient = state.polyclinic.patient;
   const [tab, setTab] = useState<Tab>('history');
 
@@ -214,7 +223,12 @@ export function ExamineOverlay({ onClose, onDispatch }: Props) {
           </div>
 
           {tab === 'history' && <HistoryTab patient={patient} />}
-          {tab === 'chat' && <ChatTab patientName={c.name} />}
+          {tab === 'chat' && (
+            <ChatTab
+              patient={patient}
+              aiPatientUsable={backendReachable && capabilities.text_ai_patient_available}
+            />
+          )}
           {tab === 'tests' && <TestsTab patient={patient} />}
           {tab === 'results' && <ResultsTab patient={patient} />}
           {tab === 'diagnose' && (
@@ -351,8 +365,6 @@ function HistoryTab({ patient }: { patient: NonNullable<ReturnType<typeof useGam
               }}
               onClick={() => {
                 store.askPolyclinicQuestion(q.id);
-                const conv = getOrCreatePatientConversation(POLYCLINIC_BED_INDEX, c);
-                conv.addGuidedExchange(q.question, q.answer);
               }}
               data-testid={`history-question-${q.id}`}
             >
@@ -670,7 +682,7 @@ function ResultsTab({ patient }: { patient: NonNullable<ReturnType<typeof useGam
         const tone = report?.abnormal ? 'var(--rose)' : 'var(--mint)';
         const isImaging = test.category === 'imaging' || tid === 'ecg';
         const images = done && isImaging
-          ? getImagingExamples(tid, !!caseResult?.abnormal, c.correctDiagnosisId)
+          ? getImagingExamples(tid, !!caseResult?.abnormal, c.id)
           : [];
         return (
           <details
@@ -987,88 +999,449 @@ function DiagnoseTab({
 
 // ── Chat tab — guided/scripted transcript ────────────────────────
 
-function ChatTab({ patientName }: { patientName: string }) {
-  const [messages, setMessages] = useState<ReadonlyArray<ChatMessage>>(() => {
-    const conv = getExistingConversation(POLYCLINIC_BED_INDEX);
-    return conv ? conv.getMessages() : [];
-  });
+function ChatTab({
+  patient,
+  aiPatientUsable,
+}: {
+  patient: ActivePatient;
+  aiPatientUsable: boolean;
+}) {
+  const [draft, setDraft] = useState('');
+  const [pendingMessageId, setPendingMessageId] = useState<string | null>(null);
+  const [retryRequest, setRetryRequest] = useState<ReturnType<typeof buildPatientRespondRequest> | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const activeMode: ConversationMode = aiPatientUsable ? patient.conversationMode : 'guided';
+  const visible = patient.transcript.filter((message) => message.role === 'user' || message.role === 'assistant');
+  const visibleQuestions = patient.case.anamnesis.filter(
+    (question) => !patient.askedQuestionIds.includes(question.id),
+  );
+  const sendDisabled = activeMode !== 'text_ai' || !draft.trim() || !!pendingMessageId || !!patient.completedAt;
 
-  // Subscribe to live message updates so the chat history updates while
-  // the doctor talks. The conversation's `subscribeMessages` returns a
-  // teardown so we clean up on unmount / patient change.
   useEffect(() => {
-    const conv = getExistingConversation(POLYCLINIC_BED_INDEX);
-    if (!conv) return;
-    setMessages(conv.getMessages());
-    return conv.subscribeMessages((msgs) => setMessages(msgs));
+    if (aiPatientUsable || patient.conversationMode !== 'text_ai') return;
+    store.recordFallbackTransition({
+      from: 'text_ai',
+      to: 'guided',
+      reason: 'capability_unavailable',
+      timestamp: Date.now(),
+    });
+    setPendingMessageId(null);
+    setRetryRequest(null);
+    setErrorMessage('AI patient is unavailable right now. Guided consultation is still available.');
+  }, [aiPatientUsable, patient.conversationMode]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
   }, []);
 
-  // Auto-scroll to the latest message whenever new ones come in.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, [visible, pendingMessageId, errorMessage]);
 
-  // Skip the system seed message (role: 'system') if any leak through.
-  const visible = messages.filter((m) => m.role === 'user' || m.role === 'assistant');
+  const switchMode = (nextMode: ConversationMode) => {
+    if (nextMode === patient.conversationMode) return;
+    if (nextMode === 'guided' && pendingMessageId) {
+      abortRef.current?.abort();
+      store.recordConversationFailure(pendingMessageId);
+      setPendingMessageId(null);
+      setRetryRequest(null);
+      setErrorMessage('AI patient paused. You can continue safely in Guided consultation.');
+    }
+    if (patient.conversationMode === 'text_ai') {
+      store.recordFallbackTransition({
+        from: patient.conversationMode,
+        to: nextMode,
+        reason: nextMode === 'guided' ? 'manual_switch' : 'learner_selected',
+        timestamp: Date.now(),
+      });
+    } else {
+      store.setConversationMode(nextMode);
+    }
+  };
 
-  if (visible.length === 0) {
-    return (
+  const dispatchPatientReply = async (request: ReturnType<typeof buildPatientRespondRequest>) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setPendingMessageId(request.learner_message_id);
+    setErrorMessage(null);
+
+    try {
+      const response = await requestPatientReply(request, controller.signal);
+      if (
+        !shouldAcceptPatientResponse({
+          expectedEncounterId: request.encounter_id,
+          expectedLearnerMessageId: request.learner_message_id,
+          currentEncounterId: store.getState().polyclinic.patient?.encounterId,
+          response,
+        })
+      ) {
+        return;
+      }
+
+      const replyTurn: EncounterTranscriptTurn = {
+        id: response.message_id,
+        role: 'assistant',
+        content: response.patient_reply,
+        source: 'text_ai',
+        timestamp: response.timestamp,
+        learnerMessageId: request.learner_message_id,
+        engine: response.engine,
+        disclosedFactIds: response.eligible_fact_ids,
+        verifiedDisclosedFactIds: response.verified_disclosed_fact_ids,
+        disclosureReceiptId: response.disclosure_receipt.receiptId,
+      };
+
+      store.appendTranscriptTurn(replyTurn);
+      store.appendDisclosureReceipt(response.disclosure_receipt as DisclosureReceipt);
+      setRetryRequest(null);
+      if (response.safety_status === 'fallback_required') {
+        switchMode('guided');
+      }
+    } catch {
+      if (controller.signal.aborted) return;
+      store.recordConversationFailure(request.learner_message_id);
+      setRetryRequest(request);
+      setErrorMessage('AI patient is temporarily unavailable. Your transcript is safe. Retry or continue in Guided consultation.');
+    } finally {
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      setPendingMessageId((current) => (current === request.learner_message_id ? null : current));
+    }
+  };
+
+  const submitTextQuestion = async () => {
+    const trimmed = draft.trim();
+    if (!trimmed || sendDisabled) return;
+
+    const turnNumber = patient.conversationTurnCount + 1;
+    const learnerMessageId = createLearnerMessageId(patient.encounterId, turnNumber);
+    const timestamp = Date.now();
+    const learnerTurn: EncounterTranscriptTurn = {
+      id: learnerMessageId,
+      role: 'user',
+      content: trimmed,
+      source: 'manual',
+      timestamp,
+      learnerMessageId,
+      engine: 'ai_text',
+    };
+    const request = buildPatientRespondRequest({
+      encounterId: patient.encounterId,
+      caseId: patient.case.id,
+      learnerMessageId,
+      learnerMessage: trimmed,
+      transcript: patient.transcript,
+      turnNumber,
+    });
+
+    store.appendTranscriptTurn(learnerTurn);
+    store.incrementConversationTurn();
+    setDraft('');
+    await dispatchPatientReply(request);
+  };
+
+  const retryFailedTurn = async () => {
+    if (!retryRequest || pendingMessageId || !!patient.completedAt) return;
+    await dispatchPatientReply(retryRequest);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <ConversationModeHeader
+        activeMode={activeMode}
+        aiPatientUsable={aiPatientUsable}
+        pending={!!pendingMessageId}
+        onSwitchMode={switchMode}
+      />
+
+      {visible.length === 0 ? (
         <div className="plush" style={{ padding: 14, fontWeight: 700, color: 'var(--ink-2)' }}>
-        No transcript yet. Guided patient replies appear here once you ask questions from the History tab.
+          No transcript yet. Start with a guided history question or switch to AI patient text mode when available.
+        </div>
+      ) : (
+        <div
+          ref={scrollRef}
+          aria-live="polite"
+          data-testid="chat-transcript"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            maxHeight: 320,
+            overflowY: 'auto',
+            paddingRight: 6,
+          }}
+        >
+          {visible.map((message) => {
+            const mine = message.role === 'user';
+            return (
+              <div
+                key={message.id}
+                data-testid={`chat-turn-${message.id}`}
+                style={{
+                  alignSelf: mine ? 'flex-end' : 'flex-start',
+                  maxWidth: '78%',
+                  background: mine ? 'var(--sky)' : 'white',
+                  border: '3px solid var(--line)',
+                  borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                  padding: '10px 14px',
+                  boxShadow: 'var(--plush-tiny)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  lineHeight: 1.4,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: 'var(--ink-2)',
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    marginBottom: 2,
+                  }}
+                >
+                  {mine ? 'You' : patient.case.name.split(' ')[0]}
+                  {!mine && message.source === 'text_ai' ? ' · AI patient' : !mine ? ' · Guided' : ''}
+                </div>
+                {message.content}
+              </div>
+            );
+          })}
+          {pendingMessageId && (
+            <div
+              data-testid="chat-pending"
+              style={{
+                alignSelf: 'flex-start',
+                maxWidth: '78%',
+                background: 'var(--cream)',
+                border: '3px solid var(--line)',
+                borderRadius: '18px 18px 18px 4px',
+                padding: '10px 14px',
+                boxShadow: 'var(--plush-tiny)',
+                fontSize: 13,
+                fontWeight: 600,
+                lineHeight: 1.4,
+              }}
+            >
+              {patient.case.name.split(' ')[0]} is thinking...
+            </div>
+          )}
+        </div>
+      )}
+
+      {errorMessage && (
+        <div
+          className="plush"
+          data-testid="chat-error"
+          style={{ padding: 14, background: 'var(--peach)', display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
+          <div style={{ fontWeight: 800 }}>{errorMessage}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {retryRequest && (
+              <button
+                type="button"
+                className="btn-plush ghost"
+                onClick={() => void retryFailedTurn()}
+                disabled={!!pendingMessageId}
+                data-testid="retry-ai-turn"
+                style={{ fontSize: 13, padding: '9px 14px' }}
+              >
+                Retry AI reply
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn-plush ghost"
+              onClick={() => switchMode('guided')}
+              data-testid="switch-to-guided"
+              style={{ fontSize: 13, padding: '9px 14px' }}
+            >
+              Switch to Guided Mode
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeMode === 'text_ai' && (
+        <div
+          className="plush"
+          style={{ padding: 14, background: 'var(--cream-2)', display: 'flex', flexDirection: 'column', gap: 10 }}
+        >
+          <label htmlFor="patient-chat-input" style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)' }}>
+            Ask the patient a natural-language question
+          </label>
+          <textarea
+            id="patient-chat-input"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value.slice(0, MAX_LEARNER_MESSAGE_CHARS))}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                void submitTextQuestion();
+              }
+            }}
+            disabled={!!pendingMessageId || !!patient.completedAt}
+            rows={3}
+            maxLength={MAX_LEARNER_MESSAGE_CHARS}
+            placeholder="What has been worrying you most about this problem?"
+            data-testid="chat-input"
+            style={{
+              width: '100%',
+              resize: 'vertical',
+              minHeight: 88,
+              border: '3px solid var(--line)',
+              borderRadius: 12,
+              padding: '10px 12px',
+              fontFamily: 'inherit',
+              fontSize: 14,
+              fontWeight: 600,
+              background: 'white',
+              color: 'var(--ink)',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-2)' }}>
+              {draft.length}/{MAX_LEARNER_MESSAGE_CHARS} characters
+            </span>
+            <button
+              type="button"
+              className="btn-plush primary"
+              onClick={() => void submitTextQuestion()}
+              disabled={sendDisabled}
+              data-testid="chat-send"
+              style={{ fontSize: 14, padding: '10px 18px' }}
+            >
+              Send to patient
+            </button>
+          </div>
+        </div>
+      )}
+
+      {activeMode === 'guided' && <GuidedQuestionTray patient={patient} questions={visibleQuestions} />}
+    </div>
+  );
+}
+
+function ConversationModeHeader({
+  activeMode,
+  aiPatientUsable,
+  pending,
+  onSwitchMode,
+}: {
+  activeMode: ConversationMode;
+  aiPatientUsable: boolean;
+  pending: boolean;
+  onSwitchMode: (mode: ConversationMode) => void;
+}) {
+  return (
+    <div
+      className="plush"
+      style={{
+        padding: 14,
+        background: 'var(--cream)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 12,
+        alignItems: 'center',
+        flexWrap: 'wrap',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+          Conversation mode
+        </div>
+        <div style={{ fontSize: 14, fontWeight: 800 }}>
+          {getConversationModeLabel(activeMode)}
+          {pending ? ' · Waiting for patient reply' : ''}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className="btn-plush ghost"
+          onClick={() => onSwitchMode('guided')}
+          data-testid="conversation-mode-guided"
+          style={{
+            fontSize: 13,
+            padding: '9px 14px',
+            background: activeMode === 'guided' ? 'var(--butter)' : 'white',
+          }}
+        >
+          Guided consultation
+        </button>
+        {aiPatientUsable && (
+          <button
+            type="button"
+            className="btn-plush ghost"
+            onClick={() => onSwitchMode('text_ai')}
+            disabled={pending}
+            data-testid="conversation-mode-text-ai"
+            style={{
+              fontSize: 13,
+              padding: '9px 14px',
+              background: activeMode === 'text_ai' ? 'var(--mint)' : 'white',
+            }}
+          >
+            AI patient — text
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function GuidedQuestionTray({
+  patient,
+  questions,
+}: {
+  patient: ActivePatient;
+  questions: ActivePatient['case']['anamnesis'];
+}) {
+  if (questions.length === 0) {
+    return (
+      <div className="plush" style={{ padding: 14, fontWeight: 700, color: 'var(--ink-2)' }}>
+        Guided questions for this case are fully covered already.
       </div>
     );
   }
 
   return (
-    <div
-      ref={scrollRef}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        maxHeight: 380,
-        overflowY: 'auto',
-        paddingRight: 6,
-      }}
-    >
-      {visible.map((m, i) => {
-        const mine = m.role === 'user';
-        return (
-          <div
-            key={i}
+    <div className="plush" style={{ padding: 14, background: 'white', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--ink-2)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+        Guided question menu
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)' }}>
+        Deterministic offline questions for {patient.case.name.split(' ')[0]}.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {questions.map((q) => (
+          <button
+            key={q.id}
+            type="button"
+            className="tap btn-plush ghost"
+            onClick={() => store.askPolyclinicQuestion(q.id)}
+            data-testid={`chat-guided-question-${q.id}`}
             style={{
-              alignSelf: mine ? 'flex-end' : 'flex-start',
-              maxWidth: '78%',
-              background: mine ? 'var(--sky)' : 'white',
-              border: '3px solid var(--line)',
-              borderRadius:
-                mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+              fontSize: 14,
               padding: '10px 14px',
-              boxShadow: 'var(--plush-tiny)',
-              fontSize: 13,
-              fontWeight: 600,
-              lineHeight: 1.4,
+              textAlign: 'left',
+              fontWeight: 700,
             }}
           >
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 800,
-                color: 'var(--ink-2)',
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                marginBottom: 2,
-              }}
-            >
-              {mine ? 'You' : patientName.split(' ')[0]}
-            </div>
-            {m.content}
-          </div>
-        );
-      })}
+            {q.question}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

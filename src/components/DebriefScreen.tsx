@@ -10,6 +10,7 @@ import { buildDebriefRequest, summariseRequest } from '../agents/debriefRequest'
 import { saveEvalHistory, getEvalHistory, type EvalHistoryEntry } from '../data/evalHistory';
 import { POLYCLINIC_DIAGNOSIS_LABELS } from '../data/polyclinicPatients';
 import { buildRuleBasedDebrief } from '../agents/ruleBasedDebrief';
+import { validateDisclosureReceiptAgainstContext } from '../agents/disclosureReceipts.ts';
 import type {
   CaseEvaluationInput,
   CriterionResult,
@@ -18,6 +19,8 @@ import type {
 } from '../agents/customTools';
 import type { ActivePatient, PatientCase } from '../game/types';
 import { useRuntime } from '../runtime/RuntimeProvider';
+import { useAuth } from '../runtime/AuthProvider';
+import { useEncounterSync } from '../runtime/EncounterSyncProvider';
 
 // ── verdict / colour mapping ───────────────────────────────────────
 
@@ -264,7 +267,7 @@ function ActionChips({ patient, c }: { patient: ActivePatient; c: PatientCase })
   }
   for (const tid of patient.givenTreatmentIds) {
     const name = treatmentById.get(tid)?.name ?? tid;
-    const tone = c.criticalTreatmentIds.includes(tid) ? 'mint' : 'peach';
+    const tone = c.assessmentCompatibility.criticalTreatmentIds.includes(tid) ? 'mint' : 'peach';
     const icon = treatmentById.get(tid)?.category === 'medication' ? '\uD83D\uDC8A' :
       treatmentById.get(tid)?.category === 'disposition' ? '\u2197' : '\uD83E\uDE7A';
     chips.push({ key: `tx-${tid}`, label: `${icon} ${name}`, tone });
@@ -487,6 +490,8 @@ function GradingProgress({ partialNarration }: { partialNarration: string }) {
 export function DebriefScreen() {
   const state = useGameState();
   const { backendReachable, capabilities } = useRuntime();
+  const { session } = useAuth();
+  const { persistAssessment } = useEncounterSync();
   const [retryKey, setRetryKey] = useState(0);
 
   // Review-mode: when viewedEvalHistoryId is set, render a saved evaluation
@@ -540,7 +545,7 @@ export function DebriefScreen() {
     if (savedRef.current) return;
     if (!evaluation || !patient || !c || !engine) return;
     savedRef.current = true;
-    const dxId = patient.submittedDiagnosisId ?? c.correctDiagnosisId;
+    const dxId = patient.submittedDiagnosisId ?? c.diagnosisOptions[0] ?? c.id;
     saveEvalHistory({
       id: patient.encounterId,
       encounterId: patient.encounterId,
@@ -552,9 +557,18 @@ export function DebriefScreen() {
       verdict: evaluation.global_rating,
       engine,
       evaluation,
+      integrityStatus: patient.evidenceIntegrityStatus,
       patientSnapshot: patient,
     });
-  }, [evaluation, patient, c, reviewed, engine]);
+    if (session?.authenticated) {
+      void persistAssessment({
+        patient,
+        engine,
+        assessmentStatus: engine === 'rule_based' && live.error ? 'fallback_completed' : 'completed',
+        evaluation: evaluation as unknown as Record<string, unknown>,
+      });
+    }
+  }, [evaluation, patient, c, reviewed, engine, session?.authenticated, persistAssessment, live.error]);
 
   // Clear review mode when the user navigates away from this screen.
   useEffect(() => {
@@ -587,6 +601,7 @@ export function DebriefScreen() {
               patient={patient}
               c={c}
               engineLabel="Rule-based assessment"
+              integrityStatus={reviewed?.integrityStatus}
             />
           </>
         ) : status === 'starting' || status === 'idle' ? (
@@ -617,6 +632,7 @@ export function DebriefScreen() {
               patient={patient}
               c={c}
               engineLabel={engine === 'ai' ? 'AI debrief' : engine === 'rule_based' ? 'Rule-based assessment' : 'Saved review'}
+              integrityStatus={reviewed?.integrityStatus}
             />
           </>
         ) : (
@@ -687,9 +703,10 @@ interface BodyProps {
   patient: ActivePatient;
   c: PatientCase;
   engineLabel: string;
+  integrityStatus?: EvalHistoryEntry['integrityStatus'];
 }
 
-function EvaluationBody({ evaluation, patient, c, engineLabel }: BodyProps) {
+function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus }: BodyProps) {
   const verdict = evaluation.global_rating;
   const dgItems = evaluation.criteria.filter((x) => x.domain === 'data_gathering');
   const cmItems = evaluation.criteria.filter((x) => x.domain === 'clinical_management');
@@ -701,6 +718,16 @@ function EvaluationBody({ evaluation, patient, c, engineLabel }: BodyProps) {
     for (const cr of rubric.clinical_management) labelByCriterionId.set(cr.criterion_id, cr.label);
     for (const cr of rubric.interpersonal) labelByCriterionId.set(cr.criterion_id, cr.label);
   }
+  const receipts = patient.disclosureReceipts.filter((receipt) =>
+    validateDisclosureReceiptAgainstContext(receipt, {
+      encounterId: patient.encounterId,
+      caseId: c.id,
+      caseVersion: c.caseVersion,
+      allowedFactIds: c.assessmentCompatibility.allowedHistoryFactIds,
+      transcript: patient.transcript,
+    }) && receipt.verifiedDisclosedFactIds.length > 0,
+  );
+  const effectiveIntegrity = integrityStatus ?? patient.evidenceIntegrityStatus;
   const elapsedSec = patient.arrivedAt ? Math.round((Date.now() - patient.arrivedAt) / 1000) : 0;
   const elapsedLabel = `${Math.floor(elapsedSec / 60)} min ${elapsedSec % 60} sec`;
 
@@ -855,6 +882,104 @@ function EvaluationBody({ evaluation, patient, c, engineLabel }: BodyProps) {
         <SectionLabel>ACTIONS YOU TOOK</SectionLabel>
         <ActionChips patient={patient} c={c} />
       </div>
+
+      <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="evidence-inspector">
+        <SectionLabel>Evidence Inspector</SectionLabel>
+        <div
+          style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)', marginBottom: 10 }}
+          data-testid="evidence-integrity-line"
+        >
+          Integrity: {effectiveIntegrity} · Case version: {c.caseVersion}
+        </div>
+        {receipts.length === 0 ? (
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)' }}>
+            No verified AI disclosure receipts were recorded for this attempt.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {receipts.map((receipt) => {
+              const learnerTurn = patient.transcript.find((turn) => turn.id === receipt.learnerMessageId);
+              const patientTurn = patient.transcript.find((turn) => turn.id === receipt.patientMessageId);
+              return (
+                <div
+                  key={receipt.receiptId}
+                  style={{ background: 'white', border: '3px solid var(--line)', borderRadius: 14, padding: 12 }}
+                  data-testid={`evidence-receipt-${receipt.receiptId}`}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--ink-2)', marginBottom: 6 }}>
+                    {receipt.engine} · turn {receipt.conversationTurn}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)', marginBottom: 4 }}>
+                    Case: {receipt.caseId} · v{receipt.caseVersion}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)', marginBottom: 4 }}>
+                    Learner message ID: {receipt.learnerMessageId}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
+                    Learner: {learnerTurn?.content ?? 'Unavailable'}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)', marginBottom: 4 }}>
+                    Patient message ID: {receipt.patientMessageId}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                    Patient: {patientTurn?.content ?? 'Unavailable'}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
+                    Eligible facts: {receipt.eligibleFactIds.join(', ') || 'none'}
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
+                    Verified facts: {receipt.verifiedDisclosedFactIds.join(', ') || 'none'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {patient.transcript.length > 0 && (
+        <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="debrief-transcript">
+          <SectionLabel>Conversation Transcript</SectionLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {patient.transcript
+              .filter((turn) => turn.role === 'assistant' || turn.role === 'user')
+              .map((turn) => {
+                const mine = turn.role === 'user';
+                return (
+                  <div
+                    key={turn.id}
+                    style={{
+                      alignSelf: mine ? 'flex-end' : 'flex-start',
+                      maxWidth: '78%',
+                      background: mine ? 'var(--sky)' : 'white',
+                      border: '3px solid var(--line)',
+                      borderRadius: mine ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                      padding: '10px 14px',
+                      boxShadow: 'var(--plush-tiny)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 900,
+                        color: 'var(--ink-2)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '.06em',
+                        marginBottom: 4,
+                      }}
+                    >
+                      {mine ? 'You' : patient.case.name.split(' ')[0]}
+                      {!mine && turn.source === 'text_ai' ? ' · AI patient' : !mine ? ' · Guided' : ''}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                      {turn.content}
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       <div
         className="plush"

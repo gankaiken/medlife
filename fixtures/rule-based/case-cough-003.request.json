@@ -75,7 +75,16 @@
     "treatments_given": [],
     "prescriptions": [],
     "transcript": [
-      { "role": "assistant", "content": "Breathing feels harder today.", "source": "guided" }
+      {
+        "id": "guided-opening-1",
+        "role": "assistant",
+        "content": "Breathing feels harder today.",
+        "source": "guided",
+        "timestamp": 1720603200000,
+        "learnerMessageId": null,
+        "engine": "guided",
+        "disclosedFactIds": []
+      }
     ],
     "results_opened": ["cxr"],
     "end_confirm": { "sum": false, "safe": false, "ice": false },

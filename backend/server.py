@@ -4,6 +4,7 @@ Provides:
 - GET /health
 - GET /agent/capabilities
 - POST /agent/debrief
+- POST /agent/patient/respond
 - POST /agent/vault/ehr/lookup
 - POST /agent/triage/classify
 - POST /voice/token
@@ -15,13 +16,60 @@ import json
 import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+import atexit
+import hmac
+import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Cookie, FastAPI, Header, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
+from slowapi import Limiter
+from slowapi.extension import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.util import get_remote_address
+
+from .db import connect as connect_db
+from .db import resolve_database_path, run_migrations, sqlite_backup, sqlite_restore
+from .patient_conversation import (
+    DisclosureReceiptModel,
+    PatientRespondRequestModel,
+    PatientRespondResponseModel,
+    FutureTimeout,
+    generate_patient_response,
+    is_text_ai_patient_available,
+    validate_patient_request,
+)
+from .patient_cases import get_patient_case
+from .patient_cases import load_learner_case_catalog
+from .persistence import (
+    append_event,
+    compute_progress,
+    create_encounter,
+    create_session,
+    create_user,
+    delete_encounter_for_user,
+    export_user_data,
+    get_completed_attempt,
+    get_encounter_for_user,
+    get_session_with_user,
+    get_user_by_id,
+    get_user_by_email,
+    import_local_attempt,
+    list_attempts_for_user,
+    list_encounters_for_user,
+    record_security_audit_event,
+    revoke_session,
+    revoke_all_sessions_for_user,
+    update_user_password,
+    upsert_assessment_and_complete,
+    verify_csrf,
+)
+from .security import hash_password, password_hash_needs_rehash, random_token, verify_password
 
 try:
     from anthropic import Anthropic
@@ -33,7 +81,64 @@ try:
 except Exception:  # pragma: no cover - optional in some local environments
     livekit_api = None
 
-app = FastAPI(title="medlife Backend", version="0.3.0")
+
+def _early_load_dotenv() -> None:
+    for candidate in (Path.cwd() / ".env", Path(__file__).resolve().parents[1] / ".env"):
+        if not candidate.exists():
+            continue
+        for line in candidate.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            key = key.strip()
+            if key and key not in os.environ:
+                os.environ[key] = value.strip().strip('"').strip("'")
+
+
+def _configured_origins() -> list[str]:
+    return [
+        origin.strip()
+        for origin in os.environ.get(
+            "MEDLIFE_CORS_ORIGINS",
+            "http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173",
+        ).split(",")
+        if origin.strip()
+    ]
+
+
+def _is_production_mode() -> bool:
+    return os.environ.get("MEDLIFE_ENV", "development").lower() == "production"
+
+
+def _validate_runtime_configuration() -> None:
+    origins = _configured_origins()
+    if "*" in origins:
+        raise RuntimeError("MEDLIFE_CORS_ORIGINS cannot contain '*' when credentials are enabled")
+    if _is_production_mode():
+        if os.environ.get("MEDLIFE_COOKIE_SECURE") != "1":
+            raise RuntimeError("MEDLIFE_COOKIE_SECURE must be 1 when MEDLIFE_ENV=production")
+        if not origins or any("localhost" in origin or "127.0.0.1" in origin for origin in origins):
+            raise RuntimeError("MEDLIFE_CORS_ORIGINS must be explicit non-local origins in production")
+
+
+_early_load_dotenv()
+_validate_runtime_configuration()
+
+app = FastAPI(title="medlife Backend", version="0.5.0")
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"], headers_enabled=True)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+_cors_origins = _configured_origins()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token"],
+)
 
 _agent_log = logging.getLogger("medlife.agent")
 if not _agent_log.handlers:
@@ -41,6 +146,13 @@ if not _agent_log.handlers:
     _handler.setFormatter(logging.Formatter("[medlife.agent] %(levelname)s %(message)s"))
     _agent_log.addHandler(_handler)
 _agent_log.setLevel(logging.INFO)
+
+_security_log = logging.getLogger("medlife.security")
+if not _security_log.handlers:
+    _security_handler = logging.StreamHandler()
+    _security_handler.setFormatter(logging.Formatter("[medlife.security] %(levelname)s %(message)s"))
+    _security_log.addHandler(_security_handler)
+_security_log.setLevel(logging.INFO)
 
 MEDLIFE_CUSTOM_TOOLS: list[dict] = [
     {
@@ -130,27 +242,31 @@ inventing actions the trainee never took.
 _anthropic_client = None
 MAX_DEBRIEF_REQUEST_CHARS = 120_000
 MAX_TRANSCRIPT_CHARS = 8_000
+TEXT_AI_PATIENT_MODEL = os.environ.get("MEDLIFE_TEXT_AI_PATIENT_MODEL", "claude-3-5-haiku-latest")
+MAX_LOCAL_MIGRATION_ENTRIES = max(int(os.environ.get("MEDLIFE_MAX_LOCAL_MIGRATION_ENTRIES", "50")), 1)
+MAX_EXPORT_FILENAME_SEGMENT = 32
+LOGIN_FAILURE_LIMIT = max(int(os.environ.get("MEDLIFE_LOGIN_FAILURE_LIMIT", "6")), 3)
+LOGIN_FAILURE_WINDOW_MINUTES = max(int(os.environ.get("MEDLIFE_LOGIN_FAILURE_WINDOW_MINUTES", "15")), 1)
+_LOGIN_FAILURES: dict[str, list[float]] = {}
 
 
-def _load_dotenv() -> None:
-    for candidate in (Path.cwd() / ".env", Path(__file__).resolve().parents[1] / ".env"):
-        if not candidate.exists():
-            continue
-        for line in candidate.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped or stripped.startswith("#") or "=" not in stripped:
-                continue
-            key, value = stripped.split("=", 1)
-            key = key.strip()
-            if key and key not in os.environ:
-                os.environ[key] = value.strip().strip('"').strip("'")
+def _compute_diagnosis_digest(diagnosis_id: str) -> str:
+    hash_value = 5381
+    for char in diagnosis_id:
+        hash_value = ((hash_value << 5) + hash_value + ord(char)) & 0xFFFFFFFF
+    return f"medlife:v1:{hash_value}"
 
-
-_load_dotenv()
+SESSION_COOKIE_NAME = "medlife_session"
+CSRF_COOKIE_NAME = "medlife_csrf"
+DB_PATH = resolve_database_path(os.environ.get("MEDLIFE_DB_PATH"))
+DB_CONN = connect_db(DB_PATH)
+run_migrations(DB_CONN)
+atexit.register(DB_CONN.close)
 
 
 class RuntimeCapabilities(BaseModel):
     backend_available: bool
+    auth_available: bool
     ai_debrief_available: bool
     guided_mode_available: bool
     text_ai_patient_available: bool
@@ -159,7 +275,7 @@ class RuntimeCapabilities(BaseModel):
     live_voice_usable: bool
     ehr_demo_available: bool
     triage_available: bool
-    persistence_mode: Literal["local_storage"]
+    persistence_mode: Literal["local_storage", "server_session_sqlite"]
 
 
 class EhrLookupRequest(BaseModel):
@@ -260,10 +376,23 @@ class PrescriptionModel(BaseModel):
 
 
 class TranscriptTurnModel(BaseModel):
+    id: str = Field(min_length=1)
     role: Literal["assistant", "user", "system"]
     content: str
-    source: Literal["guided", "voice", "manual"] | None = None
-    timestamp: int | None = None
+    source: Literal["guided", "voice", "manual", "text_ai"] | None = None
+    timestamp: int
+    learnerMessageId: str | None = None
+    engine: Literal["guided", "ai_text", "fallback_guided"] | None = None
+    disclosedFactIds: list[str] = Field(default_factory=list)
+    verifiedDisclosedFactIds: list[str] = Field(default_factory=list)
+    disclosureReceiptId: str | None = None
+
+
+class FallbackTransitionModel(BaseModel):
+    from_: Literal["guided", "text_ai"] = Field(alias="from")
+    to: Literal["guided", "text_ai"]
+    reason: str = Field(min_length=1)
+    timestamp: int
 
 
 class EndConfirmModel(BaseModel):
@@ -280,7 +409,21 @@ class EncounterLogModel(BaseModel):
     tests_ordered: list[TestOrderedModel]
     treatments_given: list[TreatmentGivenModel]
     prescriptions: list[PrescriptionModel]
+    conversation_mode: Literal["guided", "text_ai"] = "guided"
+    disclosed_fact_ids: list[str] = Field(default_factory=list)
+    disclosure_receipts: list[DisclosureReceiptModel] = Field(default_factory=list)
+    failed_conversation_turn_ids: list[str] = Field(default_factory=list)
+    fallback_transitions: list[FallbackTransitionModel] = Field(default_factory=list)
     transcript: list[TranscriptTurnModel] = Field(default_factory=list)
+    evidence_integrity_status: Literal[
+        "live_verified",
+        "server_verified",
+        "server_recorded_legacy_evidence",
+        "locally_restored",
+        "legacy_unverified",
+        "modified_or_invalid",
+        "pending_sync",
+    ] = "legacy_unverified"
     results_opened: list[str] = Field(default_factory=list)
     end_confirm: EndConfirmModel | None = None
     submitted_diagnosis_id: str | None = None
@@ -289,7 +432,9 @@ class EncounterLogModel(BaseModel):
 
 class CaseSummaryModel(BaseModel):
     chief_complaint: str
-    correct_diagnosis_id: str
+    case_version: str | None = None
+    correct_diagnosis_digest: str | None = None
+    correct_diagnosis_id: str | None = None
     diagnosis_options: list[str]
     severity: str
     age: int
@@ -298,6 +443,7 @@ class CaseSummaryModel(BaseModel):
 
 class CaseExpectationsModel(BaseModel):
     relevant_history_question_ids: list[str]
+    allowed_history_fact_ids: list[str] = Field(default_factory=list)
     acceptable_treatment_ids: list[str]
     critical_treatment_ids: list[str]
 
@@ -362,6 +508,111 @@ class VoiceTokenRequest(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class AuthRegisterRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    display_name: str = Field(min_length=1, max_length=80)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class AuthLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class AuthUserResponse(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    status: str
+    created_at: str
+    last_login_at: str | None = None
+
+
+class AuthSessionResponse(BaseModel):
+    authenticated: bool
+    user: AuthUserResponse | None
+    session_expires_at: str | None = None
+
+
+class EncounterStartRequest(BaseModel):
+    encounter_id: str = Field(min_length=1)
+    case_id: str = Field(min_length=1)
+    conversation_mode: Literal["guided", "text_ai"] = "guided"
+    draft_snapshot: dict[str, Any]
+
+
+class EncounterEventRequest(BaseModel):
+    event_id: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    sequence_number: int = Field(ge=1)
+    event_type: str = Field(min_length=1, max_length=64)
+    payload: dict[str, Any] = Field(default_factory=dict)
+    draft_snapshot: dict[str, Any]
+    integrity_status: Literal[
+        "live_verified",
+        "server_verified",
+        "server_recorded_legacy_evidence",
+        "locally_restored",
+        "legacy_unverified",
+        "modified_or_invalid",
+        "pending_sync",
+    ] = "pending_sync"
+
+
+class EncounterAssessmentPersistRequest(BaseModel):
+    completion_snapshot: dict[str, Any]
+    integrity_status: Literal[
+        "live_verified",
+        "server_verified",
+        "server_recorded_legacy_evidence",
+        "locally_restored",
+        "legacy_unverified",
+        "modified_or_invalid",
+        "pending_sync",
+    ]
+    engine: Literal["ai", "rule_based", "saved", "unavailable"]
+    assessment_status: Literal["pending", "completed", "fallback_completed", "failed"] = "completed"
+    evaluation: CaseEvaluationModel
+    evidence_refs: list[dict[str, Any]] = Field(default_factory=list)
+    receipts: list[DisclosureReceiptModel] = Field(default_factory=list)
+
+
+class DeleteEncounterResponse(BaseModel):
+    deleted: bool
+
+
+class LocalMigrationEntry(BaseModel):
+    id: str = Field(min_length=1)
+    encounterId: str = Field(min_length=1)
+    savedAt: str
+    caseId: str
+    caseName: str
+    caseAge: int
+    caseGender: Literal["M", "F"]
+    diagnosisLabel: str
+    patientName: str
+    verdict: str
+    engine: Literal["ai", "rule_based", "saved", "unavailable"]
+    evaluation: dict[str, Any]
+    integrityStatus: str
+    patientSnapshot: dict[str, Any] | None = None
+
+
+class LocalMigrationRequest(BaseModel):
+    entries: list[LocalMigrationEntry]
+
+
+class ProgressResponse(BaseModel):
+    attempts_completed: int
+    recent_scores: list[dict[str, Any]]
+    domain_averages: dict[str, float]
+    recent_trend: str
+    frequently_missed_history_domains: list[dict[str, Any]]
+    safety_critical_omissions: int
+    specialty_coverage: dict[str, int]
+    cases_attempted: int
+
+
 _EHR_RECORDS = {
     "poly-001": {
         "patient_id": "poly-001",
@@ -402,18 +653,183 @@ def _capabilities() -> RuntimeCapabilities:
         os.environ.get(name)
         for name in ("LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET")
     )
+    anthropic_ready = bool(os.environ.get("ANTHROPIC_API_KEY")) and Anthropic is not None
     return RuntimeCapabilities(
         backend_available=True,
-        ai_debrief_available=bool(os.environ.get("ANTHROPIC_API_KEY")),
+        auth_available=True,
+        ai_debrief_available=anthropic_ready,
         guided_mode_available=True,
-        text_ai_patient_available=False,
+        text_ai_patient_available=is_text_ai_patient_available(
+            anthropic_ready,
+            os.environ.get("MEDLIFE_TEXT_AI_PATIENT_ENABLED"),
+            TEXT_AI_PATIENT_MODEL,
+        ),
         voice_backend_configured=bool(voice_env_ready and livekit_api is not None),
         voice_frontend_supported=False,
         live_voice_usable=False,
         ehr_demo_available=bool(os.environ.get("EHR_API_TOKEN")),
-        triage_available=bool(os.environ.get("ANTHROPIC_API_KEY")),
-        persistence_mode="local_storage",
+        triage_available=anthropic_ready,
+        persistence_mode="server_session_sqlite",
     )
+
+
+def _user_response(user_row: dict[str, Any]) -> AuthUserResponse:
+    return AuthUserResponse(
+        id=user_row.get("id") or user_row.get("user_id"),
+        email=user_row["email"],
+        display_name=user_row["display_name"],
+        status=user_row["status"],
+        created_at=user_row["created_at"],
+        last_login_at=user_row.get("last_login_at"),
+    )
+
+
+def _request_ip(request: Request | None) -> str | None:
+    return request.client.host if request and request.client else None
+
+
+def _audit(
+    event_type: str,
+    *,
+    event_status: str,
+    request: Request | None = None,
+    user_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    safe_metadata = metadata or {}
+    record_security_audit_event(
+        DB_CONN,
+        event_type=event_type,
+        event_status=event_status,
+        user_id=user_id,
+        ip_address=_request_ip(request),
+        user_agent=request.headers.get("user-agent") if request else None,
+        metadata=safe_metadata,
+    )
+    _security_log.info(
+        json.dumps(
+            {
+                "event_type": event_type,
+                "event_status": event_status,
+                "user_id": user_id,
+                "ip_address": _request_ip(request),
+                "metadata": safe_metadata,
+            },
+            separators=(",", ":"),
+        )
+    )
+
+
+def _reject_if_login_rate_limited(identity: str) -> None:
+    if not identity:
+        return
+    import time
+
+    now = time.time()
+    cutoff = now - (LOGIN_FAILURE_WINDOW_MINUTES * 60)
+    active = [stamp for stamp in _LOGIN_FAILURES.get(identity, []) if stamp >= cutoff]
+    _LOGIN_FAILURES[identity] = active
+    if len(active) >= LOGIN_FAILURE_LIMIT:
+        raise HTTPException(status_code=429, detail="too many login attempts")
+
+
+def _record_login_failure(identity: str) -> None:
+    if not identity:
+        return
+    import time
+
+    now = time.time()
+    cutoff = now - (LOGIN_FAILURE_WINDOW_MINUTES * 60)
+    active = [stamp for stamp in _LOGIN_FAILURES.get(identity, []) if stamp >= cutoff]
+    active.append(now)
+    _LOGIN_FAILURES[identity] = active[-LOGIN_FAILURE_LIMIT:]
+
+
+def _clear_login_failures(identity: str) -> None:
+    _LOGIN_FAILURES.pop(identity, None)
+
+
+def _set_session_cookies(response: Response, raw_session_token: str, csrf_token: str, expires_at: str) -> None:
+    secure = os.environ.get("MEDLIFE_COOKIE_SECURE") == "1"
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        raw_session_token,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        path="/",
+        expires=expires_at,
+    )
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        csrf_token,
+        httponly=False,
+        samesite="lax",
+        secure=secure,
+        path="/",
+        expires=expires_at,
+    )
+
+
+def _clear_session_cookies(response: Response) -> None:
+    secure = os.environ.get("MEDLIFE_COOKIE_SECURE") == "1"
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/", samesite="lax", secure=secure)
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/", samesite="lax", secure=secure)
+
+
+def _require_session(
+    session_token: str | None,
+    request: Request | None = None,
+    csrf_token: str | None = None,
+    csrf_header: str | None = None,
+    require_csrf: bool = False,
+) -> dict[str, Any]:
+    if not session_token:
+        _audit("session_access", event_status="unauthenticated", request=request)
+        raise HTTPException(status_code=401, detail="authentication required")
+    session = get_session_with_user(DB_CONN, session_token)
+    if not session:
+        _audit("session_access", event_status="invalid_or_expired", request=request)
+        raise HTTPException(status_code=401, detail="authentication required")
+    if require_csrf:
+        if not csrf_token or not csrf_header or not hmac.compare_digest(csrf_token, csrf_header) or not verify_csrf(session, csrf_header):
+            _audit("csrf_validation", event_status="rejected", request=request, user_id=session["user_id"])
+            raise HTTPException(status_code=403, detail="request rejected")
+    return session
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = "default-src 'self'; connect-src 'self' http: https: ws: wss:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-Frame-Options"] = "DENY"
+    if os.environ.get("MEDLIFE_COOKIE_SECURE") == "1":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    if request.url.path.startswith(("/auth", "/encounters", "/progress")):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
+def _extract_case_snapshot(case_id: str) -> dict[str, Any]:
+    case = get_patient_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="unknown case")
+    learner = next(
+        (item for item in load_learner_case_catalog().get("cases", []) if item.get("case_id") == case_id),
+        None,
+    )
+    return {
+        "id": case.case_id,
+        "caseVersion": case.case_version,
+        "status": case.status,
+        "approvalStatus": case.approval_status,
+        "reviewBanner": learner.get("review_banner") if learner else f"{case.status.replace('_', ' ')} case",
+        "name": learner.get("name") if learner else case.patient_visible.identity.get("name", "Patient"),
+    }
 
 
 def _verdict_from_ratio(ratio: float) -> VerdictBand:
@@ -439,9 +855,18 @@ def _domain_score(raw: float, max_value: float) -> DomainScoreModel:
 
 def build_rule_based_assessment(req: DebriefRequestModel) -> CaseEvaluationModel:
     asked_ids = {item.id for item in req.encounter_log.history_questions_asked}
+    if req.encounter_log.disclosure_receipts:
+        disclosed_ids = {
+            fact_id
+            for receipt in req.encounter_log.disclosure_receipts
+            if receipt.integritySource == "backend"
+            for fact_id in receipt.verifiedDisclosedFactIds
+        }
+    else:
+        disclosed_ids = set(req.encounter_log.disclosed_fact_ids)
     relevant_ids = req.case_expectations.relevant_history_question_ids
-    asked_relevant = [qid for qid in relevant_ids if qid in asked_ids]
-    missing_relevant = [qid for qid in relevant_ids if qid not in asked_ids]
+    covered_relevant = [qid for qid in relevant_ids if qid in asked_ids or qid in disclosed_ids]
+    missing_relevant = [qid for qid in relevant_ids if qid not in covered_relevant]
     total_relevant = max(len(relevant_ids), 1)
 
     expected_tests = [
@@ -553,7 +978,7 @@ def build_rule_based_assessment(req: DebriefRequestModel) -> CaseEvaluationModel
         ]
     )
 
-    data_score = _domain_score(len(asked_relevant), total_relevant)
+    data_score = _domain_score(len(covered_relevant), total_relevant)
     investigation_ratio = (
         relevant_tests_ordered / len(expected_tests)
         if expected_tests
@@ -576,10 +1001,10 @@ def build_rule_based_assessment(req: DebriefRequestModel) -> CaseEvaluationModel
 
     highlights: list[str] = []
     improvements: list[str] = []
-    if asked_relevant:
+    if covered_relevant:
         highlights.append(
-            f"Asked {len(asked_relevant)} relevant history question"
-            f"{'' if len(asked_relevant) == 1 else 's'}."
+            f"Covered {len(covered_relevant)} relevant history concept"
+            f"{'' if len(covered_relevant) == 1 else 's'}."
         )
     if diagnosis_correct:
         highlights.append("Reached the correct diagnosis before debrief.")
@@ -641,8 +1066,8 @@ def build_rule_based_assessment(req: DebriefRequestModel) -> CaseEvaluationModel
                     else "The encounter ended without a submitted diagnosis."
                 ),
                 (
-                    f"Relevant history was partly covered ({len(asked_relevant)}/{total_relevant})."
-                    if asked_relevant
+                    f"Relevant history was partly covered ({len(covered_relevant)}/{total_relevant})."
+                    if covered_relevant
                     else "Relevant history prompts were missed."
                 ),
                 (
@@ -774,14 +1199,391 @@ def health():
     return _capabilities()
 
 
+@app.get("/livez")
+def livez():
+    return {"ok": True}
+
+
+@app.get("/readyz")
+def readyz():
+    try:
+        DB_CONN.execute("SELECT 1").fetchone()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="database unavailable") from exc
+    return {"ok": True, "database": "ready"}
+
+
 @app.get("/agent/capabilities", response_model=RuntimeCapabilities)
 def capabilities():
     return _capabilities()
 
 
+@app.post("/auth/register", response_model=AuthSessionResponse)
+@limiter.limit("10/minute")
+def auth_register(
+    request: Request,
+    payload: AuthRegisterRequest,
+    response: Response,
+):
+    if get_user_by_email(DB_CONN, payload.email):
+        _audit("register", event_status="duplicate", request=request, metadata={"email": payload.email.strip().lower()})
+        raise HTTPException(status_code=409, detail="registration unavailable")
+    password_hash, password_salt = hash_password(payload.password)
+    user = create_user(
+        DB_CONN,
+        email=payload.email,
+        display_name=payload.display_name,
+        password_hash=password_hash,
+        password_salt=password_salt,
+    )
+    raw_session_token = random_token()
+    csrf_token = random_token(24)
+    session = create_session(
+        DB_CONN,
+        user_id=user["id"],
+        raw_session_token=raw_session_token,
+        raw_csrf_token=csrf_token,
+        user_agent=request.headers.get("user-agent"),
+    )
+    _set_session_cookies(response, raw_session_token, csrf_token, session.expires_at)
+    _audit("register", event_status="success", request=request, user_id=user["id"])
+    return AuthSessionResponse(authenticated=True, user=_user_response(user), session_expires_at=session.expires_at)
+
+
+@app.post("/auth/login", response_model=AuthSessionResponse)
+@limiter.limit("15/minute")
+def auth_login(
+    request: Request,
+    payload: AuthLoginRequest,
+    response: Response,
+):
+    normalized_email = payload.email.strip().lower()
+    _reject_if_login_rate_limited(normalized_email)
+    user = get_user_by_email(DB_CONN, payload.email)
+    if not user or not verify_password(payload.password, user["password_hash"], user["password_salt"]):
+        _record_login_failure(normalized_email)
+        _audit("login", event_status="failed", request=request, metadata={"email": normalized_email})
+        raise HTTPException(status_code=401, detail="invalid email or password")
+    _clear_login_failures(normalized_email)
+    if password_hash_needs_rehash(user["password_hash"]):
+        next_hash, next_salt = hash_password(payload.password)
+        update_user_password(DB_CONN, user_id=user["id"], password_hash=next_hash, password_salt=next_salt)
+    raw_session_token = random_token()
+    csrf_token = random_token(24)
+    session = create_session(
+        DB_CONN,
+        user_id=user["id"],
+        raw_session_token=raw_session_token,
+        raw_csrf_token=csrf_token,
+        user_agent=request.headers.get("user-agent"),
+    )
+    _set_session_cookies(response, raw_session_token, csrf_token, session.expires_at)
+    refreshed = get_user_by_id(DB_CONN, user["id"]) or user
+    _audit("login", event_status="success", request=request, user_id=user["id"])
+    return AuthSessionResponse(authenticated=True, user=_user_response(refreshed), session_expires_at=session.expires_at)
+
+
+@app.post("/auth/logout", response_model=AuthSessionResponse)
+def auth_logout(
+    request: Request,
+    response: Response,
+    medlife_session: str | None = Cookie(default=None),
+):
+    if medlife_session:
+        session = get_session_with_user(DB_CONN, medlife_session)
+        revoke_session(DB_CONN, medlife_session)
+        if session:
+            _audit("logout", event_status="success", request=request, user_id=session["user_id"])
+    _clear_session_cookies(response)
+    return AuthSessionResponse(authenticated=False, user=None, session_expires_at=None)
+
+
+@app.post("/auth/logout-all", response_model=AuthSessionResponse)
+def auth_logout_all(
+    request: Request,
+    response: Response,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    revoke_all_sessions_for_user(DB_CONN, session["user_id"])
+    _clear_session_cookies(response)
+    _audit("logout_all", event_status="success", request=request, user_id=session["user_id"])
+    return AuthSessionResponse(authenticated=False, user=None, session_expires_at=None)
+
+
+@app.get("/auth/me", response_model=AuthSessionResponse)
+def auth_me(medlife_session: str | None = Cookie(default=None)):
+    if not medlife_session:
+        return AuthSessionResponse(authenticated=False, user=None, session_expires_at=None)
+    session = get_session_with_user(DB_CONN, medlife_session)
+    if not session:
+        return AuthSessionResponse(authenticated=False, user=None, session_expires_at=None)
+    return AuthSessionResponse(
+        authenticated=True,
+        user=_user_response(session),
+        session_expires_at=session["expires_at"],
+    )
+
+
+@app.get("/auth/export")
+def auth_export(
+    request: Request,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    payload = export_user_data(DB_CONN, session["user_id"])
+    filename_stub = re.sub(r"[^a-z0-9]+", "-", session["email"].strip().lower())[:MAX_EXPORT_FILENAME_SEGMENT].strip("-") or "learner"
+    _audit("export", event_status="success", request=request, user_id=session["user_id"])
+    return Response(
+        content=json.dumps(payload, separators=(",", ":"), ensure_ascii=True),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename_stub}-medlife-export.json"'},
+    )
+
+
+@app.post("/encounters", response_model=dict[str, Any])
+def encounter_start(
+    request: Request,
+    payload: EncounterStartRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    case = get_patient_case(payload.case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="unknown case")
+    if case.status == "retired":
+        raise HTTPException(status_code=409, detail="retired cases cannot start new encounters")
+    learner_case = _extract_case_snapshot(payload.case_id)
+    created = create_encounter(
+        DB_CONN,
+        user_id=session["user_id"],
+        encounter_id=payload.encounter_id,
+        case_id=case.case_id,
+        case_version=case.case_version,
+        case_name=str(learner_case["name"]),
+        case_status=case.status,
+        approval_status=case.approval_status,
+        review_banner=str(learner_case["reviewBanner"]),
+        conversation_mode=payload.conversation_mode,
+        integrity_status="pending_sync",
+        draft_snapshot=payload.draft_snapshot,
+    )
+    return created
+
+
+@app.get("/encounters", response_model=list[dict[str, Any]])
+def encounter_list(
+    request: Request,
+    status: str | None = None,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    return list_attempts_for_user(DB_CONN, session["user_id"]) if status is None else list_encounters_for_user(DB_CONN, session["user_id"], status=status)
+
+
+@app.get("/encounters/{encounter_id}", response_model=dict[str, Any])
+def encounter_get(
+    request: Request,
+    encounter_id: str,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    found = get_completed_attempt(DB_CONN, encounter_id, session["user_id"]) or get_encounter_for_user(DB_CONN, encounter_id, session["user_id"])
+    if not found:
+        _audit("encounter_access", event_status="missing", request=request, user_id=session["user_id"], metadata={"encounter_id": encounter_id})
+        raise HTTPException(status_code=404, detail="encounter not found")
+    return found
+
+
+@app.post("/encounters/{encounter_id}/events", response_model=dict[str, Any])
+def encounter_event_append(
+    request: Request,
+    encounter_id: str,
+    payload: EncounterEventRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    try:
+        return append_event(
+            DB_CONN,
+            user_id=session["user_id"],
+            encounter_id=encounter_id,
+            event_id=payload.event_id,
+            idempotency_key=payload.idempotency_key,
+            sequence_number=payload.sequence_number,
+            event_type=payload.event_type,
+            payload=payload.payload,
+            draft_snapshot=payload.draft_snapshot,
+            integrity_status=payload.integrity_status,
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    except ValueError as exc:
+        if str(exc) == "encounter_completed":
+            raise HTTPException(status_code=409, detail="completed encounters cannot accept new events") from exc
+        if str(exc) == "payload_too_large":
+            raise HTTPException(status_code=413, detail="event payload too large") from exc
+        raise
+    except RuntimeError:
+        raise HTTPException(status_code=409, detail="invalid event sequence")
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="invalid event sequence")
+
+
+@app.post("/encounters/{encounter_id}/assessment", response_model=dict[str, Any])
+def encounter_persist_assessment(
+    request: Request,
+    encounter_id: str,
+    payload: EncounterAssessmentPersistRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    snapshot_case = payload.completion_snapshot.get("case") or {}
+    try:
+        return upsert_assessment_and_complete(
+            DB_CONN,
+            user_id=session["user_id"],
+            encounter_id=encounter_id,
+            completion_snapshot=payload.completion_snapshot,
+            integrity_status=payload.integrity_status,
+            engine=payload.engine,
+            assessment_status=payload.assessment_status,
+            case_id=snapshot_case.get("id") or "",
+            case_version=snapshot_case.get("caseVersion") or "unknown",
+            evaluation=payload.evaluation.model_dump(),
+            evidence_refs=payload.evidence_refs,
+            receipts=[item.model_dump() for item in payload.receipts],
+        )
+    except KeyError:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    except ValueError as exc:
+        if str(exc) == "payload_too_large":
+            raise HTTPException(status_code=413, detail="assessment payload too large") from exc
+        raise
+
+
+@app.delete("/encounters/{encounter_id}", response_model=DeleteEncounterResponse)
+def encounter_delete(
+    request: Request,
+    encounter_id: str,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    deleted = delete_encounter_for_user(DB_CONN, encounter_id, session["user_id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    return DeleteEncounterResponse(deleted=True)
+
+
+@app.post("/auth/migrate-local", response_model=list[dict[str, Any]])
+@limiter.limit("5/minute")
+def auth_migrate_local(
+    request: Request,
+    response: Response,
+    payload: LocalMigrationRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    if len(payload.entries) > MAX_LOCAL_MIGRATION_ENTRIES:
+        raise HTTPException(status_code=413, detail="migration payload too large")
+    imported: list[dict[str, Any]] = []
+    for entry in payload.entries:
+        mapped_integrity = (
+            "server_recorded_legacy_evidence"
+            if entry.integrityStatus in {"live_verified", "locally_restored"}
+            else entry.integrityStatus
+        )
+        imported.append(
+            import_local_attempt(
+                DB_CONN,
+                user_id=session["user_id"],
+                entry=entry.model_dump(),
+                mapped_integrity_status=mapped_integrity,
+            )
+        )
+    _audit("local_migration", event_status="success", request=request, user_id=session["user_id"], metadata={"count": len(imported)})
+    return imported
+
+
+@app.get("/progress", response_model=ProgressResponse)
+def learner_progress(request: Request, medlife_session: str | None = Cookie(default=None)):
+    session = _require_session(medlife_session, request)
+    attempts = list_attempts_for_user(DB_CONN, session["user_id"])
+    return ProgressResponse(**compute_progress(attempts))
+
+
+@app.post("/agent/patient/respond", response_model=PatientRespondResponseModel)
+@limiter.limit("30/minute")
+def patient_respond(request: Request, response: Response, req: PatientRespondRequestModel):
+    caps = _capabilities()
+    if not caps.text_ai_patient_available:
+        raise HTTPException(status_code=503, detail="text ai patient unavailable")
+
+    resolved = validate_patient_request(req)
+
+    try:
+        return generate_patient_response(
+            _get_anthropic_client(),
+            TEXT_AI_PATIENT_MODEL,
+            req,
+            resolved["visible"],
+            resolved["case"],
+        )
+    except FutureTimeout:
+        _agent_log.warning("AI patient timed out for %s/%s", req.encounter_id, req.learner_message_id)
+        raise HTTPException(status_code=503, detail="text ai patient unavailable")
+    except (ValidationError, json.JSONDecodeError, ValueError) as exc:
+        _agent_log.warning(
+            "AI patient validation failed for %s/%s: %s",
+            req.encounter_id,
+            req.learner_message_id,
+            exc.__class__.__name__,
+        )
+        raise HTTPException(status_code=502, detail="text ai patient unavailable")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        _agent_log.warning(
+            "AI patient unavailable for %s/%s: %s",
+            req.encounter_id,
+            req.learner_message_id,
+            exc.__class__.__name__,
+        )
+        raise HTTPException(status_code=503, detail="text ai patient unavailable")
+
+
 @app.post("/agent/debrief", response_model=DebriefResponseModel)
-def debrief(req: DebriefRequestModel):
+@limiter.limit("20/minute")
+def debrief(request: Request, response: Response, req: DebriefRequestModel):
     warnings: list[str] = []
+    canonical_case = get_patient_case(req.case_id)
+    if canonical_case is None:
+        raise HTTPException(status_code=404, detail="unknown case")
+    req.case_summary.case_version = req.case_summary.case_version or canonical_case.case_version
+    req.case_summary.correct_diagnosis_digest = (
+        req.case_summary.correct_diagnosis_digest
+        or _compute_diagnosis_digest(canonical_case.clinician_only.correct_diagnosis_id)
+    )
+    if req.case_summary.case_version != canonical_case.case_version:
+        raise HTTPException(status_code=409, detail="unknown case version")
+    req.encounter_log.diagnosis_was_correct = (
+        None
+        if not req.encounter_log.submitted_diagnosis_id
+        else _compute_diagnosis_digest(req.encounter_log.submitted_diagnosis_id)
+        == _compute_diagnosis_digest(canonical_case.clinician_only.correct_diagnosis_id)
+    )
     request_size = len(req.model_dump_json())
     if request_size > MAX_DEBRIEF_REQUEST_CHARS:
         raise HTTPException(status_code=413, detail="debrief request too large")

@@ -1,9 +1,8 @@
 import type { PatientCase } from '../game/types';
-import { POLYCLINIC_CASE_LIST } from './polyclinicPatients.ts';
+import { PATIENT_CASES as LEARNER_CASES, getLearnerCase } from './learnerCases.ts';
 
-export const PATIENT_CASES: PatientCase[] = POLYCLINIC_CASE_LIST;
+export const PATIENT_CASES: PatientCase[] = LEARNER_CASES;
 
 export function getPatientCase(caseId: string | null | undefined): PatientCase | null {
-  if (!caseId) return null;
-  return PATIENT_CASES.find((item) => item.id === caseId) ?? null;
+  return getLearnerCase(caseId);
 }

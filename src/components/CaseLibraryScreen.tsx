@@ -12,6 +12,8 @@ interface CaseCardProps {
 
 function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
   const bg = CONDITION_COLORS[c.cond] ?? 'var(--butter)';
+  const governanceTone = c.status === 'approved' ? 'mint' : 'butter';
+
   return (
     <div
       className="tap popin"
@@ -114,6 +116,34 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
             </span>
           ))}
         </div>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+          {c.status && (
+            <span
+              className={`chip ${governanceTone}`}
+              style={{ fontSize: 11, padding: '3px 9px' }}
+              data-testid={`case-status-${c.id}`}
+            >
+              {c.status.replace(/_/g, ' ')}
+            </span>
+          )}
+          {c.approvalStatus && (
+            <span
+              className="chip"
+              style={{ fontSize: 11, padding: '3px 9px' }}
+              data-testid={`case-approval-${c.id}`}
+            >
+              {c.approvalStatus.replace(/_/g, ' ')}
+            </span>
+          )}
+        </div>
+        {c.reviewBanner && (
+          <div
+            style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: 'var(--ink-2)', lineHeight: 1.35 }}
+            data-testid={`case-review-banner-${c.id}`}
+          >
+            {c.reviewBanner}
+          </div>
+        )}
         <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: 'var(--ink-2)' }}>📖 {c.guideline}</div>
       </div>
     </div>
@@ -154,8 +184,6 @@ export function CaseLibraryScreen() {
   const tweaks = useTweaks();
   const [filter, setFilter] = useState<ClinicFilter>('all');
 
-  // Group every case by its clinic once. The grouping respects
-  // CLINIC_IDS order so sections render in the same canonical order.
   const grouped = useMemo(() => {
     const map = new Map<ClinicId, Case[]>();
     for (const id of CLINIC_IDS) {
@@ -169,8 +197,6 @@ export function CaseLibraryScreen() {
     return map;
   }, []);
 
-  // Apply the active filter to the grouped data so we can render it as
-  // sections without having to re-group inside the JSX.
   const visibleGroups = useMemo<Array<[ClinicId, Case[]]>>(() => {
     if (filter === 'red-flag') {
       const out: Array<[ClinicId, Case[]]> = [];
@@ -208,7 +234,6 @@ export function CaseLibraryScreen() {
     <div className="screen" style={{ background: 'var(--cream)' }}>
       <TopBar here={2} steps={['Polyclinic', 'GP', 'Case']} />
 
-      {/* Header row: back button + title + shuffle */}
       <div
         style={{
           padding: '22px 28px 0',
@@ -245,7 +270,6 @@ export function CaseLibraryScreen() {
         </button>
       </div>
 
-      {/* Clinic filter chip row */}
       <div
         style={{
           padding: '18px 28px 6px',
@@ -268,7 +292,6 @@ export function CaseLibraryScreen() {
         ))}
       </div>
 
-      {/* Grouped sections */}
       <div style={{ padding: '18px 28px 28px', display: 'flex', flexDirection: 'column', gap: 28 }}>
         {visibleGroups.map(([clinic, list]) => (
           <section key={clinic}>

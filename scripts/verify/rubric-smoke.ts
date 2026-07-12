@@ -53,13 +53,13 @@ export function verifyRubricCitations(): Violation[] {
 
   for (const c of cases) {
     if (c.rubric) continue;
-    if (c.criticalTreatmentIds.length === 0) continue;
+    if (c.assessmentCompatibility.criticalTreatmentIds.length === 0) continue;
     const auto = deriveAutoRubric(c);
     if (auto.clinical_management.length === 0) {
       violations.push({
         case: c.id,
         rule: 'auto-rubric produced no clinical_management criteria',
-        detail: `criticalTreatmentIds=${c.criticalTreatmentIds.length}`,
+        detail: `criticalTreatmentIds=${c.assessmentCompatibility.criticalTreatmentIds.length}`,
       });
     }
   }

@@ -165,6 +165,50 @@ export function BriefScreen() {
               <li>Agree a plan with the patient</li>
             </ol>
           </div>
+
+          {(patient?.reviewBanner || patient?.status || patient?.approvalStatus) && (
+            <div
+              style={{
+                background: 'white',
+                border: '3px solid var(--line)',
+                borderRadius: 'var(--r-md)',
+                padding: 14,
+                marginTop: 14,
+                boxShadow: 'var(--plush-tiny)',
+              }}
+              data-testid="case-review-banner"
+            >
+              <div
+                style={{
+                  fontWeight: 800,
+                  fontSize: 11,
+                  color: 'var(--ink-2)',
+                  letterSpacing: '.06em',
+                  textTransform: 'uppercase',
+                  marginBottom: 6,
+                }}
+              >
+                Governance status
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {patient?.status && (
+                  <span className={`chip ${patient.status === 'approved' ? 'mint' : 'butter'}`} data-testid="case-status-chip">
+                    {patient.status.replace(/_/g, ' ')}
+                  </span>
+                )}
+                {patient?.approvalStatus && (
+                  <span className="chip" data-testid="case-approval-chip">
+                    {patient.approvalStatus.replace(/_/g, ' ')}
+                  </span>
+                )}
+              </div>
+              {patient?.reviewBanner && (
+                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>
+                  {patient.reviewBanner}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* RIGHT */}

@@ -15,7 +15,7 @@ const CARDS: Card[] = [
     bg: 'var(--peach)',
     title: 'What this is.',
     body:
-      "A clinic full of simulated patients with histories, symptoms, and stories. You'll talk to them out loud, decide what to do, and get a structured debrief — every claim cited to a real published guideline.",
+      "A clinic full of simulated patients with histories, symptoms, and stories. You'll work through a guided consultation, decide what to do, and get a structured debrief grounded in the case rubric and guideline registry.",
     icon: <Doodle kind="stetho" size={140} color="var(--mint)" />,
     tag: '01 · meet medlife',
   },
@@ -23,7 +23,7 @@ const CARDS: Card[] = [
     bg: 'var(--mint)',
     title: 'How it works.',
     body:
-      'Pick a clinic. The next patient is called in. You speak; they answer in conversation. You order labs, prescribe, counsel, refer. At the end, a senior clinician walks you through what you did well and what to work on. Five to eight minutes per case. Patient conversations powered by Claude Opus 4.7.',
+      'Pick a clinic. The next patient is called in. You move through the guided learner flow, order labs, prescribe, counsel, and refer. At the end, Medlife shows either an AI debrief when the backend is configured or a local rule-based assessment when it is not. Five to eight minutes per case.',
     icon: <Doodle kind="cross" size={140} color="#F47A92" />,
     tag: '02 · the loop',
   },
@@ -161,4 +161,3 @@ export function OnboardingScreen() {
     </div>
   );
 }
-

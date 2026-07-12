@@ -9,6 +9,7 @@ import {
   listEvalHistory,
   saveEvalHistory,
 } from '../../src/data/evalHistory.ts';
+import { computeDiagnosisDigest } from '../../src/agents/disclosureReceipts.ts';
 import {
   resetGameStateForTests,
   store,
@@ -54,12 +55,17 @@ test('guided local flow reaches saved rule-based debrief history end to end', ()
   store.loadPolyclinicPatient(caseId);
 
   const historyQuestions = patientCase.anamnesis.slice(0, 2);
+  const correctDiagnosisId =
+    patientCase.diagnosisOptions.find(
+      (diagnosisId) =>
+        computeDiagnosisDigest(diagnosisId) === patientCase.assessmentCompatibility.correctDiagnosisDigest,
+    ) ?? patientCase.diagnosisOptions[0];
   for (const question of historyQuestions) {
     store.askPolyclinicQuestion(question.id);
   }
   store.orderPolyclinicTest(patientCase.testResults[0]?.testId ?? 'ecg');
   store.markResultViewed(patientCase.testResults[0]?.testId ?? 'ecg');
-  store.submitPolyclinicDiagnosis(patientCase.correctDiagnosisId);
+  store.submitPolyclinicDiagnosis(correctDiagnosisId);
   store.addPolyclinicPrescription({
     medicationId: 'paracetamol',
     dose: '1 g',
@@ -76,7 +82,7 @@ test('guided local flow reaches saved rule-based debrief history end to end', ()
 
   const snapshot = store.getState().lastEncounter;
   assert.ok(snapshot, 'expected immutable encounter snapshot');
-  assert.equal(snapshot.submittedDiagnosisId, patientCase.correctDiagnosisId);
+  assert.equal(snapshot.submittedDiagnosisId, correctDiagnosisId);
   assert.equal(snapshot.viewedResultIds.length, 1);
   assert.equal(snapshot.transcript.length, 2);
 
@@ -87,7 +93,7 @@ test('guided local flow reaches saved rule-based debrief history end to end', ()
     caseName: patientCase.name,
     caseAge: patientCase.age,
     caseGender: patientCase.gender,
-    diagnosisLabel: patientCase.correctDiagnosisId,
+    diagnosisLabel: correctDiagnosisId,
     verdict: evaluation.global_rating,
     engine: 'rule_based',
     evaluation,
@@ -96,7 +102,7 @@ test('guided local flow reaches saved rule-based debrief history end to end', ()
 
   assert.equal(listEvalHistory().length, 1);
   assert.equal(getEvalHistory(saved.id)?.engine, 'rule_based');
-  assert.equal(getEvalHistory(saved.id)?.patientSnapshot?.submittedDiagnosisId, patientCase.correctDiagnosisId);
+  assert.equal(getEvalHistory(saved.id)?.patientSnapshot?.submittedDiagnosisId, correctDiagnosisId);
 
   deleteEvalHistory(saved.id);
   assert.equal(listEvalHistory().length, 0);

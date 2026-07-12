@@ -1,5 +1,5 @@
 import type { PatientCase } from '../game/types';
-import { PATIENT_CASES, getPatientCase as getFullPatientCase } from './patients.ts';
+import { CASES as LEARNER_CASES, getLearnerCase } from './learnerCases.ts';
 
 export interface Case {
   id: string;
@@ -17,25 +17,12 @@ export interface Case {
   guideline: string;
   attempted?: boolean;
   score?: string;
+  status?: PatientCase['status'];
+  approvalStatus?: PatientCase['approvalStatus'];
+  reviewBanner?: string;
 }
 
-export const CASES: Case[] = PATIENT_CASES.map((item) => ({
-  id: item.id,
-  clinic: item.clinic,
-  name: item.name,
-  age: item.age,
-  sex: item.sex,
-  cond: item.cond,
-  complaint: item.complaint,
-  skin: item.skin,
-  hair: item.hair,
-  mood: item.mood,
-  accessory: item.accessory,
-  tags: item.tags,
-  guideline: item.guideline,
-  attempted: item.attempted,
-  score: item.score,
-}));
+export const CASES: Case[] = LEARNER_CASES;
 
 export const CONDITION_COLORS: Record<string, string> = {
   Headache: 'var(--butter)',
@@ -48,5 +35,5 @@ export function getCase(caseId: string | null | undefined): Case {
 }
 
 export function getPatientCase(caseId: string | null | undefined) {
-  return getFullPatientCase(caseId);
+  return getLearnerCase(caseId);
 }

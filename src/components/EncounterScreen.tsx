@@ -24,6 +24,7 @@ import { TopBar } from './primitives';
 import { ExamineOverlay } from './ExamineOverlay';
 import { DockedVoicePanel } from './DockedVoicePanel';
 import { useRuntime, getInteractionModeLabel } from '../runtime/RuntimeProvider';
+import { useEncounterSync } from '../runtime/EncounterSyncProvider';
 
 /** Adaptive FOV: keeps the horizontal FOV near 82° regardless of viewport
  *  aspect, plus a hold-Z (or scroll wheel) "lean in" zoom. */
@@ -174,6 +175,7 @@ export function EncounterScreen() {
   const state = useGameState();
   const patient = state.polyclinic.patient;
   const { capabilities, backendReachable } = useRuntime();
+  const { syncState, pendingCount, retrySync } = useEncounterSync();
 
   // Voice is on the moment the encounter mounts — the FloatingVoicePanel
   // calls `getOrCreatePatientConversation()` which kicks off LiveKit
@@ -280,23 +282,6 @@ export function EncounterScreen() {
     if (patient) setVoiceActive(true);
     else setVoiceActive(false);
   }, [currentPatientCaseId, patient]);
-
-  useEffect(() => {
-    if (!patient) return;
-    const conv = getOrCreatePatientConversation(POLYCLINIC_BED_INDEX, patient.case);
-    store.setPatientTranscript(conv.getMessages().map((message) => ({
-      role: message.role,
-      content: message.content,
-      source: 'guided',
-    })));
-    return conv.subscribeMessages((messages) => {
-      store.setPatientTranscript(messages.map((message) => ({
-        role: message.role,
-        content: message.content,
-        source: 'guided',
-      })));
-    });
-  }, [patient?.case.id]);
 
   // Look-around is automatic while Examine is closed — PointerLockControls
   // mounts inside Player and engages on canvas click. When Examine opens
@@ -462,7 +447,7 @@ export function EncounterScreen() {
         <div
           style={{
             position: 'absolute',
-            bottom: 18,
+            bottom: 62,
             left: 18,
             zIndex: 6,
             display: 'flex',
@@ -478,7 +463,7 @@ export function EncounterScreen() {
             color: 'var(--ink-2)',
             pointerEvents: 'none',
           }}
-        >
+          >
           {pointerLocked ? (
             <>
               {interactionMode} · <Kbd>E</Kbd> examine · <Kbd>Esc</Kbd> release
@@ -491,6 +476,27 @@ export function EncounterScreen() {
               />
               {interactionMode} · click the room to look around · use History questions to drive the transcript
             </>
+          )}
+        </div>
+
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 18,
+            left: 18,
+            zIndex: 6,
+            display: 'flex',
+            gap: 8,
+            alignItems: 'center',
+          }}
+        >
+          <span className={`chip ${syncState === 'pending_sync' ? 'peach' : syncState === 'saved' ? 'mint' : 'butter'}`} data-testid="sync-status">
+            {syncState === 'pending_sync' ? `Pending sync (${pendingCount})` : syncState === 'saved' ? 'Saved to server' : 'Local session'}
+          </span>
+          {syncState === 'pending_sync' && (
+            <button type="button" className="btn-plush ghost" style={{ fontSize: 12, padding: '8px 12px' }} onClick={() => void retrySync()} data-testid="retry-sync-inline">
+              Retry sync
+            </button>
           )}
         </div>
       </div>

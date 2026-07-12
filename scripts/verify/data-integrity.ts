@@ -8,6 +8,7 @@ import { POLYCLINIC_CASES } from '../../src/data/polyclinicPatients.ts';
 import { TESTS } from '../../src/data/tests.ts';
 import { TREATMENTS } from '../../src/data/treatments.ts';
 import { MEDICATIONS } from '../../src/data/medications.ts';
+import { computeDiagnosisDigest } from '../../src/agents/disclosureReceipts.ts';
 import type { PatientCase } from '../../src/game/types.ts';
 
 type Violation = { case: string; rule: string; detail: string };
@@ -36,7 +37,6 @@ export function verifyDataIntegrity(): Violation[] {
 
   for (const c of cases) {
     caseIds.set(c.id, (caseIds.get(c.id) ?? 0) + 1);
-    knownDiagnoses.add(c.correctDiagnosisId);
     for (const opt of c.diagnosisOptions) knownDiagnoses.add(opt);
 
     for (const tr of c.testResults) {
@@ -45,7 +45,7 @@ export function verifyDataIntegrity(): Violation[] {
       }
     }
 
-    for (const tx of c.acceptableTreatmentIds) {
+    for (const tx of c.assessmentCompatibility.acceptableTreatmentIds) {
       if (!treatmentIds.has(tx)) {
         violations.push({
           case: c.id,
@@ -55,7 +55,7 @@ export function verifyDataIntegrity(): Violation[] {
       }
     }
 
-    for (const tx of c.criticalTreatmentIds) {
+    for (const tx of c.assessmentCompatibility.criticalTreatmentIds) {
       if (!treatmentIds.has(tx)) {
         violations.push({
           case: c.id,
@@ -63,7 +63,7 @@ export function verifyDataIntegrity(): Violation[] {
           detail: tx,
         });
       }
-      if (!c.acceptableTreatmentIds.includes(tx)) {
+      if (!c.assessmentCompatibility.acceptableTreatmentIds.includes(tx)) {
         violations.push({
           case: c.id,
           rule: 'criticalTreatmentIds not subset of acceptableTreatmentIds',
@@ -72,11 +72,14 @@ export function verifyDataIntegrity(): Violation[] {
       }
     }
 
-    if (!c.diagnosisOptions.includes(c.correctDiagnosisId)) {
+    const matchingDiagnosis = c.diagnosisOptions.find(
+      (diagnosisId) => computeDiagnosisDigest(diagnosisId) === c.assessmentCompatibility.correctDiagnosisDigest,
+    );
+    if (!matchingDiagnosis) {
       violations.push({
         case: c.id,
-        rule: 'correctDiagnosisId not in diagnosisOptions',
-        detail: c.correctDiagnosisId,
+        rule: 'correct diagnosis digest not represented in diagnosisOptions',
+        detail: c.assessmentCompatibility.correctDiagnosisDigest,
       });
     }
   }

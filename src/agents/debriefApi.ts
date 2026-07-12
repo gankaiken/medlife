@@ -16,6 +16,7 @@ export type DebriefResponse = z.infer<typeof debriefResponseSchema>;
 
 const runtimeCapabilitiesSchema = z.object({
   backend_available: z.boolean(),
+  auth_available: z.boolean(),
   ai_debrief_available: z.boolean(),
   guided_mode_available: z.boolean(),
   text_ai_patient_available: z.boolean(),
@@ -24,7 +25,7 @@ const runtimeCapabilitiesSchema = z.object({
   live_voice_usable: z.boolean(),
   ehr_demo_available: z.boolean(),
   triage_available: z.boolean(),
-  persistence_mode: z.literal('local_storage'),
+  persistence_mode: z.enum(['local_storage', 'server_session_sqlite']),
 });
 export type RuntimeCapabilities = z.infer<typeof runtimeCapabilitiesSchema>;
 

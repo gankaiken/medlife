@@ -6,7 +6,11 @@ import {
   deleteEvalHistory,
   getEvalHistoryHealth,
   type EvalHistoryEntry,
+  saveEvalHistory,
 } from '../data/evalHistory';
+import { useAuth } from '../runtime/AuthProvider';
+import { useEncounterSync } from '../runtime/EncounterSyncProvider';
+import { deleteServerEncounter, mapServerAttemptToEvalHistoryEntry } from '../agents/accountApi';
 
 const VERDICT_COLOR: Record<string, string> = {
   excellent: 'var(--mint)',
@@ -34,12 +38,20 @@ function formatDate(value: string): string {
 }
 
 export function HistoryScreen() {
+  const { session, serverAttempts, refresh: refreshAuth } = useAuth();
+  const { hydrateFromServerAttempt } = useEncounterSync();
   const [history, setHistory] = useState<EvalHistoryEntry[]>([]);
   const [healthMessage, setHealthMessage] = useState<string | null>(null);
   const [healthStatus, setHealthStatus] = useState<'ok' | 'empty' | 'partially_recovered' | 'corrupted'>('empty');
 
   const refresh = () => {
-    setHistory(listEvalHistory());
+    const local = listEvalHistory();
+    const remote = session?.authenticated
+      ? serverAttempts
+          .map((item) => mapServerAttemptToEvalHistoryEntry(item))
+          .filter((item): item is EvalHistoryEntry => item !== null)
+      : [];
+    setHistory(session?.authenticated ? remote : local);
     const health = getEvalHistoryHealth();
     setHealthMessage(health.message);
     setHealthStatus(health.status);
@@ -47,7 +59,7 @@ export function HistoryScreen() {
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [session?.authenticated, serverAttempts]);
 
   const summary = useMemo(() => {
     const total = history.length;
@@ -75,7 +87,9 @@ export function HistoryScreen() {
           <div>
             <h1 style={{ fontSize: 36, marginBottom: 4 }}>Training history</h1>
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-2)' }}>
-              Every completed attempt saved from the shared local review log used by Home and Debrief.
+              {session?.authenticated
+                ? 'Signed-in history comes from server-stored learner records. Anonymous/local attempts stay separate until you import them.'
+                : 'Every completed attempt saved from the shared local review log used by Home and Debrief.'}
             </div>
           </div>
           <button
@@ -110,7 +124,29 @@ export function HistoryScreen() {
           <span className="chip butter">{summary.total} attempt{summary.total === 1 ? '' : 's'}</span>
           <span className="chip">{summary.byEngine.ai ?? 0} AI</span>
           <span className="chip">{summary.byEngine.rule_based ?? 0} rule-based</span>
+          <span className="chip">{session?.authenticated ? 'Server records' : 'Local records'}</span>
         </div>
+
+        {session?.authenticated && serverAttempts.some((item) => item.status === 'in_progress') && (
+          <div className="plush" style={{ padding: 16, marginBottom: 18 }} data-testid="history-in-progress">
+            <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
+              In-progress encounters
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {serverAttempts.filter((item) => item.status === 'in_progress').map((item) => (
+                <div key={String(item.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--cream)', border: '2.5px solid var(--line)', borderRadius: 12, padding: '10px 12px' }}>
+                  <div>
+                    <div style={{ fontWeight: 800 }}>{String(item.case_name ?? item.case_id)}</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>{formatDate(String(item.last_activity_at))}</div>
+                  </div>
+                  <button type="button" className="btn-plush ghost" onClick={() => hydrateFromServerAttempt(item)} data-testid={`history-resume-${String(item.id)}`}>
+                    Resume
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {history.length === 0 ? (
           <div className="plush" style={{ padding: 24, textAlign: 'center' }} data-testid="history-empty">
@@ -148,7 +184,16 @@ export function HistoryScreen() {
                 />
                 <div
                   className="tap"
-                  onClick={() => store.viewEvalHistory(item.id)}
+                  onClick={() => {
+                    const server = session?.authenticated
+                      ? serverAttempts.find((attempt) => String(attempt.id) === item.id)
+                      : null;
+                    const mapped = server ? mapServerAttemptToEvalHistoryEntry(server) : item;
+                    if (mapped) {
+                      saveEvalHistory(mapped);
+                      store.viewEvalHistory(mapped.id);
+                    }
+                  }}
                   style={{ cursor: 'pointer' }}
                   data-testid={`history-attempt-${item.id}`}
                 >
@@ -170,8 +215,15 @@ export function HistoryScreen() {
                   type="button"
                   title="Delete attempt"
                   onClick={() => {
-                    deleteEvalHistory(item.id);
-                    refresh();
+                    void (async () => {
+                      if (session?.authenticated) {
+                        await deleteServerEncounter(item.id);
+                        await refreshAuth();
+                      } else {
+                        deleteEvalHistory(item.id);
+                      }
+                      refresh();
+                    })();
                   }}
                   style={{
                     background: 'transparent',

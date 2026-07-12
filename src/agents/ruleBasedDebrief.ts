@@ -1,5 +1,6 @@
 import type { CaseEvaluationInput, CriterionResult, DomainScore, VerdictBand } from './customTools';
 import type { DebriefRequest } from './debriefRequest';
+import { validateDisclosureReceiptAgainstContext } from './disclosureReceipts.ts';
 
 function verdictFromRatio(ratio: number): VerdictBand {
   if (ratio >= 0.85) return 'excellent';
@@ -20,11 +21,28 @@ function makeDomainScore(raw: number, max: number): DomainScore {
 
 export function buildRuleBasedDebrief(request: DebriefRequest): CaseEvaluationInput {
   const askedIds = new Set(request.encounter_log.history_questions_asked.map((item) => item.id));
+  const legacyDisclosedIds = request.encounter_log.disclosed_fact_ids ?? [];
+  const receiptContext = request.case_summary.case_version
+    ? {
+        encounterId: request.encounter_id,
+        caseId: request.case_id,
+        caseVersion: request.case_summary.case_version,
+        allowedFactIds: request.case_expectations.allowed_history_fact_ids,
+        transcript: request.encounter_log.transcript ?? [],
+      }
+    : null;
+  const disclosedIds = new Set(
+    (request.encounter_log.disclosure_receipts ?? []).length > 0
+      ? (request.encounter_log.disclosure_receipts ?? [])
+          .filter((receipt) => (receiptContext ? validateDisclosureReceiptAgainstContext(receipt, receiptContext) : false))
+          .flatMap((receipt) => receipt.verifiedDisclosedFactIds)
+      : legacyDisclosedIds,
+  );
   const orderedIds = new Set(request.encounter_log.tests_ordered.map((item) => item.test_id));
   const openedIds = new Set(request.encounter_log.results_opened);
   const relevantIds = request.case_expectations.relevant_history_question_ids;
-  const askedRelevant = relevantIds.filter((id) => askedIds.has(id));
-  const missingRelevant = relevantIds.filter((id) => !askedIds.has(id));
+  const coveredRelevant = relevantIds.filter((id) => askedIds.has(id) || disclosedIds.has(id));
+  const missingRelevant = relevantIds.filter((id) => !coveredRelevant.includes(id));
   const totalRelevant = Math.max(relevantIds.length, 1);
 
   const diagnosisSubmitted = request.encounter_log.submitted_diagnosis_id !== null;
@@ -115,7 +133,7 @@ export function buildRuleBasedDebrief(request: DebriefRequest): CaseEvaluationIn
     evidence: wrap?.ice ? 'Ideas, concerns, and expectations were recorded as addressed.' : 'Ideas, concerns, and expectations were not recorded as addressed.',
   });
 
-  const dataGatheringScore = makeDomainScore(askedRelevant.length, totalRelevant);
+  const dataGatheringScore = makeDomainScore(coveredRelevant.length, totalRelevant);
   const investigationRatio =
     expectedTests.length > 0 ? relevantTestsOrdered / expectedTests.length : orderedIds.size > 0 ? 1 : 0.5;
   const diagnosisScore = diagnosisCorrect ? 1 : diagnosisSubmitted ? 0.4 : 0;
@@ -138,8 +156,8 @@ export function buildRuleBasedDebrief(request: DebriefRequest): CaseEvaluationIn
   const highlights: string[] = [];
   const improvements: string[] = [];
 
-  if (askedRelevant.length > 0) {
-    highlights.push(`Asked ${askedRelevant.length} relevant history question${askedRelevant.length === 1 ? '' : 's'}.`);
+  if (coveredRelevant.length > 0) {
+    highlights.push(`Covered ${coveredRelevant.length} relevant history concept${coveredRelevant.length === 1 ? '' : 's'}.`);
   }
   if (diagnosisCorrect) {
     highlights.push('Reached the correct diagnosis before debrief.');
@@ -169,8 +187,8 @@ export function buildRuleBasedDebrief(request: DebriefRequest): CaseEvaluationIn
       : diagnosisSubmitted
         ? 'The student submitted a diagnosis, but it did not match the case answer.'
         : 'The encounter ended without a submitted diagnosis.',
-    askedRelevant.length > 0
-      ? `Relevant history was partly covered (${askedRelevant.length}/${totalRelevant}).`
+    coveredRelevant.length > 0
+      ? `Relevant history was partly covered (${coveredRelevant.length}/${totalRelevant}).`
       : 'Relevant history prompts were missed.',
     likelyTreated
       ? 'A management plan was recorded.'

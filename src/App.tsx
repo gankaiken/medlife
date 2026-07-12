@@ -15,6 +15,8 @@ import { AgenticRoundsScreen } from './components/AgenticRoundsScreen';
 import { AgentTopologyScreen } from './components/AgentTopologyScreen';
 import { BackgroundMusic } from './components/BackgroundMusic';
 import { RuntimeProvider } from './runtime/RuntimeProvider';
+import { AuthProvider } from './runtime/AuthProvider';
+import { EncounterSyncProvider } from './runtime/EncounterSyncProvider';
 
 const EncounterScreen = lazy(() =>
   import('./components/EncounterScreen').then((mod) => ({ default: mod.EncounterScreen })),
@@ -46,26 +48,30 @@ export default function App() {
 
   return (
     <RuntimeProvider>
-      <div className="app">
-        {screen === 'splash' && <SplashScreen />}
-        {screen === 'onboarding' && <OnboardingScreen />}
-        {screen === 'home' && <HomeScreen />}
-        {screen === 'mode' && <ModeSelectScreen />}
-        {screen === 'gpRoom' && <GPRoomScreen />}
-        {screen === 'library' && <CaseLibraryScreen />}
-        {screen === 'brief' && <BriefScreen />}
-        {screen === 'encounter' && (
-          <Suspense fallback={<div className="screen paper" style={{ display: 'grid', placeItems: 'center' }}>Loading encounter...</div>}>
-            <EncounterScreen />
-          </Suspense>
-        )}
-        {screen === 'endConfirm' && <EndConfirmScreen />}
-        {screen === 'debrief' && <DebriefScreen />}
-        {screen === 'history' && <HistoryScreen />}
-        {screen === 'agenticRounds' && <AgenticRoundsScreen />}
-        {screen === 'agentTopology' && <AgentTopologyScreen />}
-        <BackgroundMusic />
-      </div>
+      <AuthProvider>
+        <EncounterSyncProvider>
+          <div className="app">
+            {screen === 'splash' && <SplashScreen />}
+            {screen === 'onboarding' && <OnboardingScreen />}
+            {screen === 'home' && <HomeScreen />}
+            {screen === 'mode' && <ModeSelectScreen />}
+            {screen === 'gpRoom' && <GPRoomScreen />}
+            {screen === 'library' && <CaseLibraryScreen />}
+            {screen === 'brief' && <BriefScreen />}
+            {screen === 'encounter' && (
+              <Suspense fallback={<div className="screen paper" style={{ display: 'grid', placeItems: 'center' }}>Loading encounter...</div>}>
+                <EncounterScreen />
+              </Suspense>
+            )}
+            {screen === 'endConfirm' && <EndConfirmScreen />}
+            {screen === 'debrief' && <DebriefScreen />}
+            {screen === 'history' && <HistoryScreen />}
+            {screen === 'agenticRounds' && <AgenticRoundsScreen />}
+            {screen === 'agentTopology' && <AgentTopologyScreen />}
+            <BackgroundMusic />
+          </div>
+        </EncounterSyncProvider>
+      </AuthProvider>
     </RuntimeProvider>
   );
 }

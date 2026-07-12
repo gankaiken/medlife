@@ -31,13 +31,13 @@ os.environ.setdefault("ANTHROPIC_API_KEY", "sk-ant-api03-test-dummy")
 
 # Make ``backend/`` importable whether unittest is launched from the
 # repo root or from inside ``backend/``.
-_BACKEND_DIR = Path(__file__).resolve().parents[1]
-if str(_BACKEND_DIR) not in sys.path:
-    sys.path.insert(0, str(_BACKEND_DIR))
+_ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(_ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(_ROOT_DIR))
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-import server  # noqa: E402
+from backend import server  # noqa: E402
 
 
 _VAULT_TOKEN = os.environ["EHR_API_TOKEN"]

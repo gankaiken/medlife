@@ -19,7 +19,7 @@ export function getRubricFor(c: PatientCase): CaseRubric {
   if (c.rubric) return c.rubric;
 
   const firstRelevantQuestion = c.anamnesis.find((item) => item.relevant);
-  const firstCriticalTreatment = c.criticalTreatmentIds[0];
+  const firstCriticalTreatment = c.assessmentCompatibility.criticalTreatmentIds[0];
 
   return {
     data_gathering: [
