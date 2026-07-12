@@ -1,0 +1,50 @@
+{
+  "schema_version": "medlife.curriculum-taxonomy.v1",
+  "domains": [
+    {
+      "id": "communication",
+      "label": "Communication and rapport",
+      "observable_status": "observed_or_partially_observed_in_text"
+    },
+    {
+      "id": "history_taking",
+      "label": "Focused history taking",
+      "observable_status": "observed"
+    },
+    {
+      "id": "clinical_reasoning",
+      "label": "Clinical reasoning and prioritisation",
+      "observable_status": "observed_and_inferred"
+    },
+    {
+      "id": "investigation_strategy",
+      "label": "Investigation strategy",
+      "observable_status": "observed"
+    },
+    {
+      "id": "management_planning",
+      "label": "Management planning",
+      "observable_status": "observed"
+    },
+    {
+      "id": "patient_safety",
+      "label": "Patient safety and escalation",
+      "observable_status": "observed"
+    },
+    {
+      "id": "professionalism",
+      "label": "Professionalism and boundaries",
+      "observable_status": "observed_or_inferred"
+    },
+    {
+      "id": "reflection",
+      "label": "Self-reflection and next-step planning",
+      "observable_status": "learner_authored"
+    },
+    {
+      "id": "non_verbal_presence",
+      "label": "Non-verbal communication",
+      "observable_status": "not_observable_in_current_modality"
+    }
+  ]
+}

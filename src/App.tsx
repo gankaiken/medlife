@@ -11,6 +11,7 @@ import { BriefScreen } from './components/BriefScreen';
 import { EndConfirmScreen } from './components/EndConfirmScreen';
 import { DebriefScreen } from './components/DebriefScreen';
 import { HistoryScreen } from './components/HistoryScreen';
+import { EducatorWorkspaceScreen } from './components/EducatorWorkspaceScreen';
 import { AgenticRoundsScreen } from './components/AgenticRoundsScreen';
 import { AgentTopologyScreen } from './components/AgentTopologyScreen';
 import { BackgroundMusic } from './components/BackgroundMusic';
@@ -66,6 +67,7 @@ export default function App() {
             {screen === 'endConfirm' && <EndConfirmScreen />}
             {screen === 'debrief' && <DebriefScreen />}
             {screen === 'history' && <HistoryScreen />}
+            {screen === 'educatorWorkspace' && <EducatorWorkspaceScreen />}
             {screen === 'agenticRounds' && <AgenticRoundsScreen />}
             {screen === 'agentTopology' && <AgentTopologyScreen />}
             <BackgroundMusic />

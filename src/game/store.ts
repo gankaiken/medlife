@@ -11,6 +11,7 @@ import type {
   EndConfirmChecks,
   FallbackTransition,
   GameState,
+  LearnerReflection,
   Prescription,
   Screen,
   Tweaks,
@@ -117,6 +118,7 @@ function buildActivePatient(caseId: string): ActivePatient | null {
     transcript: [],
     disclosureReceipts: [],
     evidenceIntegrityStatus: 'live_verified',
+    learnerReflection: null,
     completedAt: null,
     endConfirm: null,
   };
@@ -369,6 +371,19 @@ export const store = {
     });
   },
 
+  updateLearnerReflection(reflection: Partial<LearnerReflection>): void {
+    mutatePatient((patient) => {
+      patient.learnerReflection = {
+        whatWentWell: patient.learnerReflection?.whatWentWell ?? '',
+        missedInformation: patient.learnerReflection?.missedInformation ?? '',
+        whatDoDifferently: patient.learnerReflection?.whatDoDifferently ?? '',
+        weakestReasoningPart: patient.learnerReflection?.weakestReasoningPart ?? '',
+        nextPracticeFocus: patient.learnerReflection?.nextPracticeFocus ?? '',
+        ...reflection,
+      };
+    });
+  },
+
   finishPolyclinicCase(): void {
     const completedAt = Date.now();
     const currentPatient = state.polyclinic.patient
@@ -388,6 +403,9 @@ export const store = {
           testOrderedAt: { ...state.polyclinic.patient.testOrderedAt },
           disclosureReceipts: state.polyclinic.patient.disclosureReceipts.map((item) => ({ ...item })),
           evidenceIntegrityStatus: state.polyclinic.patient.evidenceIntegrityStatus,
+          learnerReflection: state.polyclinic.patient.learnerReflection
+            ? { ...state.polyclinic.patient.learnerReflection }
+            : null,
           completedAt,
           endConfirm: { ...state.endConfirm },
         }
@@ -451,6 +469,7 @@ function mutatePatient(mutator: (patient: ActivePatient) => void): void {
     transcript: current.transcript.slice(),
     disclosureReceipts: current.disclosureReceipts.map((item) => ({ ...item })),
     evidenceIntegrityStatus: current.evidenceIntegrityStatus,
+    learnerReflection: current.learnerReflection ? { ...current.learnerReflection } : null,
     completedAt: current.completedAt ?? null,
     endConfirm: current.endConfirm ? { ...current.endConfirm } : null,
   };

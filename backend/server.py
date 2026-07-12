@@ -34,7 +34,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
 from .db import connect as connect_db
-from .db import resolve_database_path, run_migrations, sqlite_backup, sqlite_restore
+from .db import resolve_database_path, run_migrations, schema_health_error, sqlite_backup, sqlite_restore, utc_now_iso
 from .patient_conversation import (
     DisclosureReceiptModel,
     PatientRespondRequestModel,
@@ -48,23 +48,40 @@ from .patient_cases import get_patient_case
 from .patient_cases import load_learner_case_catalog
 from .persistence import (
     append_event,
+    build_deidentified_research_id,
+    compute_agreement_metrics,
     compute_progress,
+    create_educator_attempt_score,
+    create_attempt_review,
+    create_case_review_record,
     create_encounter,
+    create_research_consent_event,
     create_session,
     create_user,
     delete_encounter_for_user,
+    export_pilot_research_data,
     export_user_data,
     get_completed_attempt,
+    get_educator_attempt_score,
     get_encounter_for_user,
+    get_latest_attempt_review,
+    get_latest_case_review,
     get_session_with_user,
+    get_user_preferences,
+    list_educator_attempt_scores,
     get_user_by_id,
     get_user_by_email,
     import_local_attempt,
+    list_research_consent_events,
+    list_attempt_reviews_for_learner,
+    list_attempts_for_reviewer,
+    list_case_review_records,
     list_attempts_for_user,
     list_encounters_for_user,
     record_security_audit_event,
     revoke_session,
     revoke_all_sessions_for_user,
+    upsert_user_preferences,
     update_user_password,
     upsert_assessment_and_complete,
     verify_csrf,
@@ -262,6 +279,13 @@ DB_PATH = resolve_database_path(os.environ.get("MEDLIFE_DB_PATH"))
 DB_CONN = connect_db(DB_PATH)
 run_migrations(DB_CONN)
 atexit.register(DB_CONN.close)
+
+ROLE_ALLOWLIST_ENV: dict[str, UserRole] = {
+    "MEDLIFE_EDUCATOR_REVIEWER_EMAILS": "educator_reviewer",
+    "MEDLIFE_CLINICAL_REVIEWER_EMAILS": "clinical_reviewer",
+    "MEDLIFE_CURRICULUM_REVIEWER_EMAILS": "curriculum_reviewer",
+    "MEDLIFE_PILOT_ADMIN_EMAILS": "pilot_admin",
+}
 
 
 class RuntimeCapabilities(BaseModel):
@@ -523,6 +547,7 @@ class AuthUserResponse(BaseModel):
     id: str
     email: str
     display_name: str
+    role: Literal["learner", "educator_reviewer", "clinical_reviewer", "curriculum_reviewer", "pilot_admin"]
     status: str
     created_at: str
     last_login_at: str | None = None
@@ -613,6 +638,89 @@ class ProgressResponse(BaseModel):
     cases_attempted: int
 
 
+LearnerStage = Literal[
+    "pre_clinical_foundation",
+    "transition_to_clinical_learning",
+    "early_clinical",
+    "core_clinical_rotation",
+    "pre_intern_preparation",
+]
+
+UserRole = Literal["learner", "educator_reviewer", "clinical_reviewer", "curriculum_reviewer", "pilot_admin"]
+CURRENT_RESEARCH_CONSENT_VERSION = os.environ.get("MEDLIFE_RESEARCH_CONSENT_VERSION", "fixture-consent-2026-07")
+DEFAULT_PILOT_ID = os.environ.get("MEDLIFE_PILOT_ID", "monash-candidate-pilot-fixture")
+
+
+class UserPreferencesResponse(BaseModel):
+    learner_stage: LearnerStage
+    non_3d_mode: bool
+    low_bandwidth_mode: bool
+    reduced_motion_mode: bool
+    background_audio_enabled: bool
+    educational_notice_acknowledged_at: str | None = None
+    research_participation_status: Literal["not_answered", "consented", "declined", "withdrawn"]
+    research_consent_version: str | None = None
+    research_consented_at: str | None = None
+    research_withdrawn_at: str | None = None
+    deidentified_research_id: str | None = None
+    updated_at: str
+
+
+class UpdateUserPreferencesRequest(BaseModel):
+    learner_stage: LearnerStage
+    non_3d_mode: bool = False
+    low_bandwidth_mode: bool = False
+    reduced_motion_mode: bool = False
+    background_audio_enabled: bool = True
+    educational_notice_acknowledged_at: str | None = None
+    research_participation_status: Literal["not_answered", "consented", "declined", "withdrawn"] = "not_answered"
+
+
+class AttemptReviewRequest(BaseModel):
+    educator_comment: str = Field(min_length=1, max_length=5000)
+    agreement_label: Literal["agree", "partially_agree", "disagree"]
+    safety_concern_level: Literal["none", "minor_omission", "important_omission", "safety_critical_omission", "potentially_harmful_action"]
+    reviewed_status: Literal["educator_reviewed", "review_logged"]
+
+
+class CaseReviewRequest(BaseModel):
+    review_type: Literal["clinical", "curriculum", "simulation", "ai"]
+    decision: Literal["request_revision", "candidate_public_source_mapping", "academic_review_required", "academically_reviewed", "curriculum_approved", "clinically_reviewed", "pilot_ready_pending_other_reviews"]
+    comments: str = Field(min_length=1, max_length=5000)
+    mapping_version: str | None = None
+    next_review_date: str | None = None
+    fixture_label: str | None = None
+
+
+class EducatorAttemptScoreRequest(BaseModel):
+    rubric_version: str = Field(min_length=1, max_length=128)
+    review_mode: Literal["independent", "assisted"] = "independent"
+    overall_score: float | None = Field(default=None, ge=0, le=100)
+    overall_category: str = Field(min_length=1, max_length=64)
+    domain_scores: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    safety_findings: list[str] = Field(default_factory=list)
+    missed_history_concepts: list[str] = Field(default_factory=list)
+    investigation_evaluation: str = Field(min_length=1, max_length=2000)
+    diagnosis_evaluation: str = Field(min_length=1, max_length=2000)
+    communication_evaluation: str = Field(min_length=1, max_length=2000)
+    educator_comment: str = Field(min_length=1, max_length=5000)
+    confidence_label: Literal["low", "medium", "high"]
+    review_minutes: int = Field(ge=0, le=600)
+    submit_status: Literal["draft", "submitted"] = "submitted"
+    amended_from_score_id: str | None = None
+
+
+class TestSupportCaseReviewSeedRequest(BaseModel):
+    case_id: str
+    case_version: str
+    review_type: Literal["clinical", "curriculum", "simulation", "ai"]
+    decision: Literal["request_revision", "candidate_public_source_mapping", "academic_review_required", "academically_reviewed", "curriculum_approved", "clinically_reviewed", "pilot_ready_pending_other_reviews"]
+    comments: str = Field(min_length=1, max_length=5000)
+    mapping_version: str | None = None
+    next_review_date: str | None = None
+    fixture_label: str | None = None
+
+
 _EHR_RECORDS = {
     "poly-001": {
         "patient_id": "poly-001",
@@ -678,14 +786,105 @@ def _user_response(user_row: dict[str, Any]) -> AuthUserResponse:
         id=user_row.get("id") or user_row.get("user_id"),
         email=user_row["email"],
         display_name=user_row["display_name"],
+        role=user_row.get("role", "learner"),
         status=user_row["status"],
         created_at=user_row["created_at"],
         last_login_at=user_row.get("last_login_at"),
     )
 
 
+def _split_env_list(name: str) -> set[str]:
+    return {
+        item.strip().lower()
+        for item in os.environ.get(name, "").split(",")
+        if item.strip()
+    }
+
+
+def _configured_role_for_email(email: str) -> UserRole:
+    normalized = email.strip().lower()
+    for env_name, role in ROLE_ALLOWLIST_ENV.items():
+        if normalized in _split_env_list(env_name):
+            return role
+    return "learner"
+
+
+def _preferences_response(row: dict[str, Any] | None) -> UserPreferencesResponse:
+    item = row or {
+        "learner_stage": "transition_to_clinical_learning",
+        "non_3d_mode": 0,
+        "low_bandwidth_mode": 0,
+        "reduced_motion_mode": 0,
+        "background_audio_enabled": 1,
+        "educational_notice_acknowledged_at": None,
+        "research_participation_status": "not_answered",
+        "research_consent_version": None,
+        "research_consented_at": None,
+        "research_withdrawn_at": None,
+        "deidentified_research_id": None,
+        "updated_at": utc_now_iso(),
+    }
+    return UserPreferencesResponse(
+        learner_stage=item["learner_stage"],
+        non_3d_mode=bool(item["non_3d_mode"]),
+        low_bandwidth_mode=bool(item["low_bandwidth_mode"]),
+        reduced_motion_mode=bool(item["reduced_motion_mode"]),
+        background_audio_enabled=bool(item["background_audio_enabled"]),
+        educational_notice_acknowledged_at=item.get("educational_notice_acknowledged_at"),
+        research_participation_status=item.get("research_participation_status", "not_answered"),
+        research_consent_version=item.get("research_consent_version"),
+        research_consented_at=item.get("research_consented_at"),
+        research_withdrawn_at=item.get("research_withdrawn_at"),
+        deidentified_research_id=item.get("deidentified_research_id"),
+        updated_at=item.get("updated_at", utc_now_iso()),
+    )
+
+
+def _read_json_file(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _curriculum_review_metadata(case_id: str, mapping_version: str | None) -> dict[str, Any]:
+    shared_root = Path(__file__).resolve().parents[1] / "shared"
+    source_registry = _read_json_file(shared_root / "curriculum" / "source_registry.json")
+    institution_profile = _read_json_file(shared_root / "curriculum" / "institution_profiles" / "monash_candidate.json")
+    case_registry = _read_json_file(shared_root / "patient_case_registry.json")
+    diagnosis_version = None
+    management_version = None
+    safety_version = None
+    for item in case_registry.get("cases", []):
+        if item.get("case_id") == case_id:
+            diagnosis_version = item.get("case_version")
+            management_version = item.get("updated_date")
+            safety_version = item.get("updated_date")
+            break
+    return {
+        "mapping_version": mapping_version,
+        "institution_profile_version": institution_profile.get("program_version"),
+        "source_registry_version": source_registry.get("schema_version"),
+        "diagnosis_definition_version": diagnosis_version,
+        "management_content_version": management_version,
+        "patient_safety_rule_version": safety_version,
+    }
+
+
+def _require_role(session: dict[str, Any], allowed: set[UserRole]) -> UserRole:
+    role = session.get("role", "learner")
+    if role not in allowed:
+        raise HTTPException(status_code=403, detail="insufficient role")
+    return role
+
+
 def _request_ip(request: Request | None) -> str | None:
     return request.client.host if request and request.client else None
+
+
+def readiness_error(conn: sqlite3.Connection) -> str | None:
+    try:
+        conn.execute("SELECT 1").fetchone()
+    except Exception:
+        return "database unavailable"
+    return schema_health_error(conn)
 
 
 def _audit(
@@ -1206,10 +1405,10 @@ def livez():
 
 @app.get("/readyz")
 def readyz():
-    try:
-        DB_CONN.execute("SELECT 1").fetchone()
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="database unavailable") from exc
+    error = readiness_error(DB_CONN)
+    if error:
+        detail = "database unavailable" if error == "database unavailable" else "database schema incompatible"
+        raise HTTPException(status_code=503, detail=detail)
     return {"ok": True, "database": "ready"}
 
 
@@ -1235,7 +1434,9 @@ def auth_register(
         display_name=payload.display_name,
         password_hash=password_hash,
         password_salt=password_salt,
+        role=_configured_role_for_email(payload.email),
     )
+    assigned_role = user.get("role", "learner")
     raw_session_token = random_token()
     csrf_token = random_token(24)
     session = create_session(
@@ -1247,6 +1448,14 @@ def auth_register(
     )
     _set_session_cookies(response, raw_session_token, csrf_token, session.expires_at)
     _audit("register", event_status="success", request=request, user_id=user["id"])
+    if assigned_role != "learner":
+        _audit(
+            "institutional_role_assigned",
+            event_status="success",
+            request=request,
+            user_id=user["id"],
+            metadata={"role": assigned_role, "assignment_mode": "email_allowlist_test_setup"},
+        )
     return AuthSessionResponse(authenticated=True, user=_user_response(user), session_expires_at=session.expires_at)
 
 
@@ -1341,6 +1550,80 @@ def auth_export(
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{filename_stub}-medlife-export.json"'},
     )
+
+
+@app.get("/auth/preferences", response_model=UserPreferencesResponse)
+def auth_preferences_get(
+    request: Request,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    return _preferences_response(get_user_preferences(DB_CONN, session["user_id"]))
+
+
+@app.put("/auth/preferences", response_model=UserPreferencesResponse)
+def auth_preferences_put(
+    request: Request,
+    payload: UpdateUserPreferencesRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    current = get_user_preferences(DB_CONN, session["user_id"]) or {}
+    deidentified_research_id = current.get("deidentified_research_id")
+    research_withdrawn_at = current.get("research_withdrawn_at")
+    research_consent_version = current.get("research_consent_version")
+    research_consented_at = current.get("research_consented_at")
+    if payload.research_participation_status == "consented":
+        deidentified_research_id = deidentified_research_id or build_deidentified_research_id(session["user_id"])
+        research_consent_version = CURRENT_RESEARCH_CONSENT_VERSION
+        research_consented_at = utc_now_iso()
+        research_withdrawn_at = None
+    elif payload.research_participation_status == "declined":
+        research_consent_version = CURRENT_RESEARCH_CONSENT_VERSION
+        research_consented_at = None
+        research_withdrawn_at = None
+    elif payload.research_participation_status == "withdrawn":
+        research_consent_version = research_consent_version or CURRENT_RESEARCH_CONSENT_VERSION
+        research_withdrawn_at = utc_now_iso()
+    updated = upsert_user_preferences(
+        DB_CONN,
+        user_id=session["user_id"],
+        learner_stage=payload.learner_stage,
+        non_3d_mode=payload.non_3d_mode,
+        low_bandwidth_mode=payload.low_bandwidth_mode,
+        reduced_motion_mode=payload.reduced_motion_mode,
+        background_audio_enabled=payload.background_audio_enabled,
+        educational_notice_acknowledged_at=payload.educational_notice_acknowledged_at,
+        research_participation_status=payload.research_participation_status,
+        research_consent_version=research_consent_version,
+        research_consented_at=research_consented_at,
+        research_withdrawn_at=research_withdrawn_at,
+        deidentified_research_id=deidentified_research_id,
+    )
+    create_research_consent_event(
+        DB_CONN,
+        user_id=session["user_id"],
+        learner_stage=payload.learner_stage,
+        educational_notice_acknowledged_at=payload.educational_notice_acknowledged_at,
+        research_participation_status=payload.research_participation_status,
+        research_consent_version=research_consent_version,
+        research_consented_at=research_consented_at,
+        research_withdrawn_at=research_withdrawn_at,
+        deidentified_research_id=deidentified_research_id,
+        metadata={"changed_from": current.get("research_participation_status", "not_answered")},
+    )
+    return _preferences_response(updated)
+
+
+@app.get("/auth/research-consent-events", response_model=list[dict[str, Any]])
+def auth_research_consent_events(
+    request: Request,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    return list_research_consent_events(DB_CONN, session["user_id"])
 
 
 @app.post("/encounters", response_model=dict[str, Any])
@@ -1522,6 +1805,277 @@ def learner_progress(request: Request, medlife_session: str | None = Cookie(defa
     session = _require_session(medlife_session, request)
     attempts = list_attempts_for_user(DB_CONN, session["user_id"])
     return ProgressResponse(**compute_progress(attempts))
+
+
+@app.get("/pilot/attempts", response_model=list[dict[str, Any]])
+def pilot_attempts(
+    request: Request,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    _require_role(session, {"educator_reviewer", "clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    attempts = list_attempts_for_reviewer(DB_CONN)
+    for item in attempts:
+        item["latest_review"] = get_latest_attempt_review(DB_CONN, str(item["id"]))
+    return attempts
+
+
+@app.post("/pilot/attempts/{encounter_id}/review", response_model=dict[str, Any])
+def pilot_attempt_review(
+    request: Request,
+    encounter_id: str,
+    payload: AttemptReviewRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    reviewer_role = _require_role(session, {"educator_reviewer", "pilot_admin"})
+    attempt = DB_CONN.execute("SELECT user_id FROM encounters WHERE id = ?", (encounter_id,)).fetchone()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    return create_attempt_review(
+        DB_CONN,
+        encounter_id=encounter_id,
+        learner_user_id=str(attempt["user_id"]),
+        reviewer_user_id=session["user_id"],
+        reviewer_role=reviewer_role,
+        educator_comment=payload.educator_comment,
+        agreement_label=payload.agreement_label,
+        safety_concern_level=payload.safety_concern_level,
+        reviewed_status=payload.reviewed_status,
+    )
+
+
+@app.post("/pilot/attempts/{encounter_id}/scores", response_model=dict[str, Any])
+def pilot_attempt_score_create(
+    request: Request,
+    encounter_id: str,
+    payload: EducatorAttemptScoreRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    reviewer_role = _require_role(session, {"educator_reviewer", "pilot_admin"})
+    attempt = DB_CONN.execute("SELECT user_id FROM encounters WHERE id = ?", (encounter_id,)).fetchone()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    if payload.review_mode == "independent" and payload.overall_category.strip().lower() == "copy automated":
+        raise HTTPException(status_code=422, detail="independent scoring cannot be prepopulated from automated output")
+    return create_educator_attempt_score(
+        DB_CONN,
+        encounter_id=encounter_id,
+        learner_user_id=str(attempt["user_id"]),
+        reviewer_user_id=session["user_id"],
+        reviewer_role=reviewer_role,
+        rubric_version=payload.rubric_version,
+        review_mode=payload.review_mode,
+        overall_score=payload.overall_score,
+        overall_category=payload.overall_category,
+        domain_scores=payload.domain_scores,
+        safety_findings=payload.safety_findings,
+        missed_history_concepts=payload.missed_history_concepts,
+        investigation_evaluation=payload.investigation_evaluation,
+        diagnosis_evaluation=payload.diagnosis_evaluation,
+        communication_evaluation=payload.communication_evaluation,
+        educator_comment=payload.educator_comment,
+        confidence_label=payload.confidence_label,
+        review_minutes=payload.review_minutes,
+        submit_status=payload.submit_status,
+        amended_from_score_id=payload.amended_from_score_id,
+    )
+
+
+@app.get("/pilot/attempts/{encounter_id}/scores", response_model=list[dict[str, Any]])
+def pilot_attempt_scores(
+    request: Request,
+    encounter_id: str,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    attempt = DB_CONN.execute("SELECT user_id FROM encounters WHERE id = ?", (encounter_id,)).fetchone()
+    if not attempt:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    if session.get("role") == "learner" and str(attempt["user_id"]) != str(session["user_id"]):
+        raise HTTPException(status_code=403, detail="insufficient role")
+    return list_educator_attempt_scores(DB_CONN, encounter_id)
+
+
+@app.get("/pilot/attempts/{encounter_id}/reviews", response_model=list[dict[str, Any]])
+def pilot_attempt_reviews(
+    request: Request,
+    encounter_id: str,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    if session.get("role") == "learner":
+        attempt = DB_CONN.execute("SELECT user_id FROM encounters WHERE id = ?", (encounter_id,)).fetchone()
+        if not attempt or str(attempt["user_id"]) != str(session["user_id"]):
+            raise HTTPException(status_code=403, detail="insufficient role")
+    else:
+        _require_role(session, {"educator_reviewer", "clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    learner_id_row = DB_CONN.execute("SELECT user_id FROM encounters WHERE id = ?", (encounter_id,)).fetchone()
+    if not learner_id_row:
+        raise HTTPException(status_code=404, detail="encounter not found")
+    reviews = [item for item in list_attempt_reviews_for_learner(DB_CONN, str(learner_id_row["user_id"])) if item["encounter_id"] == encounter_id]
+    return reviews
+
+
+@app.get("/pilot/case-reviews", response_model=list[dict[str, Any]])
+def pilot_case_reviews(
+    request: Request,
+    case_id: str | None = None,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    _require_role(session, {"clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    return list_case_review_records(DB_CONN, case_id=case_id)
+
+
+@app.post("/pilot/cases/{case_id}/review", response_model=dict[str, Any])
+def pilot_case_review_create(
+    request: Request,
+    case_id: str,
+    payload: CaseReviewRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    reviewer_role = _require_role(session, {"clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    if payload.review_type == "curriculum" and reviewer_role not in {"curriculum_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="curriculum review requires curriculum reviewer")
+    if payload.review_type == "clinical" and reviewer_role not in {"clinical_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="clinical review requires clinical reviewer")
+    if payload.decision == "curriculum_approved" and reviewer_role not in {"curriculum_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="curriculum approval requires curriculum reviewer")
+    if payload.decision == "clinically_reviewed" and reviewer_role not in {"clinical_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="clinical approval requires clinical reviewer")
+    case = get_patient_case(case_id)
+    if case is None:
+        raise HTTPException(status_code=404, detail="unknown case")
+    metadata = _curriculum_review_metadata(case_id, payload.mapping_version)
+    return create_case_review_record(
+        DB_CONN,
+        case_id=case_id,
+        case_version=case.case_version,
+        review_type=payload.review_type,
+        decision=payload.decision,
+        reviewer_user_id=session["user_id"],
+        reviewer_role=reviewer_role,
+        comments=payload.comments,
+        mapping_version=payload.mapping_version,
+        institution_profile_version=metadata["institution_profile_version"],
+        source_registry_version=metadata["source_registry_version"],
+        diagnosis_definition_version=metadata["diagnosis_definition_version"],
+        management_content_version=metadata["management_content_version"],
+        patient_safety_rule_version=metadata["patient_safety_rule_version"],
+        review_scope={
+            "required_domains": ["curriculum", "clinical", "simulation", "ai"],
+            "review_type": payload.review_type,
+        },
+        fixture_label=payload.fixture_label,
+        next_review_date=payload.next_review_date,
+    )
+
+
+@app.get("/pilot/analytics", response_model=dict[str, Any])
+def pilot_analytics(
+    request: Request,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    _require_role(session, {"educator_reviewer", "clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    attempts = list_attempts_for_reviewer(DB_CONN)
+    completed = [item for item in attempts if item.get("status") == "completed"]
+    reviews = int(DB_CONN.execute("SELECT COUNT(*) AS c FROM attempt_reviews").fetchone()["c"])
+    agreement = compute_agreement_metrics(DB_CONN)
+    return {
+        "attempt_count": len(attempts),
+        "completed_attempt_count": len(completed),
+        "review_count": reviews,
+        "ai_fallback_rate": round(
+            (
+                sum(1 for item in completed if str(item.get("assessment_engine_value") or "") == "rule_based")
+                / max(len(completed), 1)
+            ),
+            3,
+        ),
+        "technical_failure_rate": 0.0,
+        "small_sample_warning": len(completed) < 30,
+        "agreement_metrics": agreement,
+    }
+
+
+@app.get("/pilot/research/export")
+def pilot_research_export(
+    request: Request,
+    pilot_id: str = DEFAULT_PILOT_ID,
+    consent_version: str | None = None,
+    medlife_session: str | None = Cookie(default=None),
+):
+    session = _require_session(medlife_session, request)
+    _require_role(session, {"pilot_admin"})
+    payload = export_pilot_research_data(DB_CONN, pilot_id=pilot_id, consent_version=consent_version)
+    safe_pilot = re.sub(r"[^a-z0-9]+", "-", pilot_id.strip().lower())[:MAX_EXPORT_FILENAME_SEGMENT].strip("-") or "pilot"
+    _audit(
+        "pilot_research_export",
+        event_status="success",
+        request=request,
+        user_id=session["user_id"],
+        metadata={"pilot_id": pilot_id, "row_count": len(payload.get("rows", []))},
+    )
+    return Response(
+        content=json.dumps(payload, separators=(",", ":"), ensure_ascii=True),
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{safe_pilot}-deidentified-export.json"',
+            "Cache-Control": "no-store",
+        },
+    )
+
+
+@app.post("/test-support/seed-case-review", response_model=dict[str, Any])
+def test_support_seed_case_review(
+    request: Request,
+    payload: TestSupportCaseReviewSeedRequest,
+    x_csrf_token: str | None = Header(default=None, alias="X-CSRF-Token"),
+    medlife_session: str | None = Cookie(default=None),
+    medlife_csrf: str | None = Cookie(default=None),
+):
+    if os.environ.get("MEDLIFE_E2E_TEST_MODE") != "1":
+        raise HTTPException(status_code=404, detail="not found")
+    session = _require_session(medlife_session, request, medlife_csrf, x_csrf_token, require_csrf=True)
+    reviewer_role = _require_role(session, {"clinical_reviewer", "curriculum_reviewer", "pilot_admin"})
+    if payload.review_type == "curriculum" and reviewer_role not in {"curriculum_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="curriculum review requires curriculum reviewer")
+    if payload.review_type == "clinical" and reviewer_role not in {"clinical_reviewer", "pilot_admin"}:
+        raise HTTPException(status_code=403, detail="clinical review requires clinical reviewer")
+    metadata = _curriculum_review_metadata(payload.case_id, payload.mapping_version)
+    return create_case_review_record(
+        DB_CONN,
+        case_id=payload.case_id,
+        case_version=payload.case_version,
+        review_type=payload.review_type,
+        decision=payload.decision,
+        reviewer_user_id=session["user_id"],
+        reviewer_role=reviewer_role,
+        comments=payload.comments,
+        mapping_version=payload.mapping_version,
+        institution_profile_version=metadata["institution_profile_version"],
+        source_registry_version=metadata["source_registry_version"],
+        diagnosis_definition_version=metadata["diagnosis_definition_version"],
+        management_content_version=metadata["management_content_version"],
+        patient_safety_rule_version=metadata["patient_safety_rule_version"],
+        review_scope={
+            "required_domains": ["curriculum", "clinical", "simulation", "ai"],
+            "review_type": payload.review_type,
+            "seeded_by": "test_support",
+        },
+        fixture_label=payload.fixture_label,
+        next_review_date=payload.next_review_date,
+    )
 
 
 @app.post("/agent/patient/respond", response_model=PatientRespondResponseModel)

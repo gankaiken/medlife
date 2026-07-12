@@ -115,6 +115,16 @@ Optional integrations:
 
 The backend loads `.env` itself for local development and still starts if optional credentials are missing.
 
+## Password profile
+
+- Digest: `PBKDF2-HMAC-SHA256`
+- Stored format: `pbkdf2_sha256$<iterations>$<digest>`
+- Default iteration floor: `240000`
+- Salt source: `secrets.token_bytes(16)` encoded as base64
+- Derived-key length: SHA-256 PBKDF2 default output (`32` bytes)
+- Maximum password length: `256` characters
+- Upgrade condition: any stored hash below the current configured iteration target is re-hashed after a successful login
+
 ## Security notes
 
 - Session and CSRF values are random browser cookies; the database stores only one-way hashes.
@@ -123,6 +133,8 @@ The backend loads `.env` itself for local development and still starts if option
 - The backend records non-secret audit events for login, logout, export, migration, and rejected access.
 - Learner export excludes password hashes, sessions, and secrets.
 - Account deletion is not implemented yet.
+- Client IP resolution currently uses the direct ASGI client address. `X-Forwarded-For` is not trusted by default.
+- Rate limiting is in-memory and therefore single-process protection only.
 
 ## Local run
 
@@ -136,6 +148,15 @@ Database operations:
 ```powershell
 python -m backend.manage_db backup
 python -m backend.manage_db restore .\backend\medlife.backup.sqlite3
+```
+
+Dedicated verification commands:
+
+```powershell
+python -m backend.verify_migration_upgrade
+python -m backend.verify_backup_restore
+python -m backend.verify_security_config
+python -m backend.verify_readiness_failures
 ```
 
 To enable learner-facing text AI patient mode locally:

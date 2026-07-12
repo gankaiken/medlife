@@ -25,6 +25,7 @@ import { ExamineOverlay } from './ExamineOverlay';
 import { DockedVoicePanel } from './DockedVoicePanel';
 import { useRuntime, getInteractionModeLabel } from '../runtime/RuntimeProvider';
 import { useEncounterSync } from '../runtime/EncounterSyncProvider';
+import { useAuth } from '../runtime/AuthProvider';
 
 /** Adaptive FOV: keeps the horizontal FOV near 82° regardless of viewport
  *  aspect, plus a hold-Z (or scroll wheel) "lean in" zoom. */
@@ -176,6 +177,7 @@ export function EncounterScreen() {
   const patient = state.polyclinic.patient;
   const { capabilities, backendReachable } = useRuntime();
   const { syncState, pendingCount, retrySync } = useEncounterSync();
+  const { preferences } = useAuth();
 
   // Voice is on the moment the encounter mounts — the FloatingVoicePanel
   // calls `getOrCreatePatientConversation()` which kicks off LiveKit
@@ -352,6 +354,95 @@ export function EncounterScreen() {
     [],
   );
   const interactionMode = getInteractionModeLabel(capabilities, backendReachable);
+  const accessibleMode = preferences.non_3d_mode || preferences.low_bandwidth_mode;
+
+  if (accessibleMode) {
+    return (
+      <div className="screen paper" style={{ overflowY: 'auto' }}>
+        <TopBar here={4} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter']} />
+        <div style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 36px 60px' }}>
+          <div className="plush-lg" style={{ padding: 18, background: 'var(--cream-2)', marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink-2)' }}>
+              Accessible encounter mode
+            </div>
+            <h1 style={{ fontSize: 34, marginTop: 8, marginBottom: 8 }}>
+              Non-3D consultation
+            </h1>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+              This chart-first mode keeps the same history, investigations, diagnosis, management, debrief, and reflection outcomes without requiring the 3D room.
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+              <span className="chip butter">{interactionMode}</span>
+              <span className="chip">{preferences.low_bandwidth_mode ? 'Low bandwidth' : 'Standard bandwidth'}</span>
+              <span className="chip">{preferences.reduced_motion_mode ? 'Reduced motion' : 'Animation allowed'}</span>
+            </div>
+            {preferences.low_bandwidth_mode && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 8 }} data-testid="low-bandwidth-encounter-note">
+                low-bandwidth preference - optimisation incomplete
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn-plush mint"
+              onClick={() => setExamineOpen(true)}
+              data-testid="open-examination-accessible"
+            >
+              Open chart and examine
+            </button>
+            <button
+              type="button"
+              className="btn-plush butter"
+              onClick={() => wrapForAssessment()}
+              data-testid="wrap-for-assessment-accessible"
+            >
+              Wrap up for assessment
+            </button>
+            <button
+              type="button"
+              className="btn-plush ghost"
+              onClick={() => void endConsultation()}
+              data-testid="end-consultation-accessible"
+            >
+              End consultation
+            </button>
+          </div>
+
+          {patient && (
+            <div className="plush" style={{ padding: 16, marginBottom: 18 }}>
+              <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
+                Case focus
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800 }}>{patient.case.chiefComplaint}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', marginTop: 6 }}>
+                Objectives: {patient.case.learningDesign.prebrief.learningObjectives.join(' ')}
+              </div>
+            </div>
+          )}
+
+          {examineOpen && patient && (
+            <>
+              {!preferences.low_bandwidth_mode && (
+                <DockedVoicePanel
+                  patientName={patient.case.name}
+                  patientLabel={`${patient.case.age}${patient.case.gender}`}
+                />
+              )}
+              <ExamineOverlay
+                onClose={() => setExamineOpen(false)}
+                onDispatch={async () => {
+                  setExamineOpen(false);
+                  await endConsultation();
+                }}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }}>

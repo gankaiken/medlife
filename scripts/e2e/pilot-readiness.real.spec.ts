@@ -1,0 +1,653 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+
+const PASSWORD = 'correct horse battery';
+const APP_URL = 'http://127.0.0.1:4173/';
+const emails = {
+  learner: process.env.MEDLIFE_E2E_ROLE_LEARNER_EMAIL ?? 'learner@example.com',
+  educator: process.env.MEDLIFE_E2E_ROLE_EDUCATOR_EMAIL ?? 'educator@example.com',
+  clinical: process.env.MEDLIFE_E2E_ROLE_CLINICAL_EMAIL ?? 'clinical@example.com',
+  curriculum: process.env.MEDLIFE_E2E_ROLE_CURRICULUM_EMAIL ?? 'curriculum@example.com',
+  admin: process.env.MEDLIFE_E2E_ROLE_ADMIN_EMAIL ?? 'admin@example.com',
+};
+
+function throwIfForcedFailure(marker: string) {
+  if (process.env.MEDLIFE_E2E_FORCE_FAILURE === marker) {
+    throw new Error(`Deliberate pilot-readiness failure triggered for cleanup verification: ${marker}`);
+  }
+}
+
+async function waitForApp(page: Page) {
+  await expect.poll(async () => {
+    const response = await page.request.get(APP_URL);
+    return response.status();
+  }).toBe(200);
+  await page.goto(APP_URL);
+  await page.getByTestId('enter-training-floor').click({ force: true });
+  await page.getByTestId('onboarding-next').click();
+  await page.getByTestId('onboarding-next').click();
+  await page.getByTestId('finish-onboarding').click({ force: true });
+}
+
+async function ensureAccount(page: Page, email: string, displayName: string) {
+  await waitForApp(page);
+  const panel = page.getByTestId('auth-panel');
+  if (await panel.getByText(email).isVisible().catch(() => false)) {
+    return;
+  }
+  await panel.getByText('Register').click();
+  await page.getByTestId('register-display-name').fill(displayName);
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(PASSWORD);
+  await page.getByTestId('register-button').click();
+  await expect(page.getByTestId('auth-panel')).toContainText(email, { timeout: 15000 });
+}
+
+async function loginAccount(page: Page, email: string) {
+  await waitForApp(page);
+  const panel = page.getByTestId('auth-panel');
+  if (await panel.getByText(email).isVisible().catch(() => false)) {
+    return;
+  }
+  await panel.getByText('Login').first().click();
+  await page.getByTestId('auth-email').fill(email);
+  await page.getByTestId('auth-password').fill(PASSWORD);
+  await page.getByTestId('login-button').click();
+  await expect(page.getByTestId('auth-panel')).toContainText(email, { timeout: 15000 });
+}
+
+async function logoutIfNeeded(page: Page) {
+  const logoutButton = page.getByTestId('logout-button');
+  if (await logoutButton.isVisible().catch(() => false)) {
+    await logoutButton.click();
+    await expect(page.getByTestId('auth-panel')).toContainText(/Signed-out local mode stays available/i);
+  }
+}
+
+async function registerAllRoles(browser: Browser) {
+  const roles = [
+    ['learner', emails.learner, 'Learner Pilot'],
+    ['educator', emails.educator, 'Educator Reviewer'],
+    ['clinical', emails.clinical, 'Clinical Reviewer'],
+    ['curriculum', emails.curriculum, 'Curriculum Reviewer'],
+    ['admin', emails.admin, 'Pilot Admin'],
+  ] as const;
+  for (const [, email, name] of roles) {
+    const page = await browser.newPage();
+    await ensureAccount(page, email, name);
+    await page.close();
+  }
+}
+
+async function apiRequest(page: Page, path: string, options: { method?: string; body?: Record<string, unknown> } = {}) {
+  return await page.evaluate(
+    async ({ path: requestPath, method, body }) => {
+      const csrfCookie = document.cookie
+        .split(';')
+        .map((part) => part.trim())
+        .find((part) => part.startsWith('medlife_csrf='));
+      const csrf = csrfCookie ? decodeURIComponent(csrfCookie.slice('medlife_csrf='.length)) : null;
+      const headers: Record<string, string> = {};
+      if (body) {
+        headers['Content-Type'] = 'application/json';
+      }
+      if (csrf && method && method !== 'GET') {
+        headers['X-CSRF-Token'] = csrf;
+      }
+      const response = await fetch(`http://127.0.0.1:8787${requestPath}`, {
+        method,
+        credentials: 'include',
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await response.text();
+      let json: unknown = null;
+      try {
+        json = JSON.parse(text);
+      } catch {}
+      return {
+        status: response.status,
+        ok: response.ok,
+        text,
+        json,
+        headers: Object.fromEntries(response.headers.entries()),
+      };
+    },
+    { path, method: options.method ?? 'GET', body: options.body ?? null },
+  );
+}
+
+async function choosePolyclinic(page: Page) {
+  const stageSelect = page.getByTestId('learner-stage-select');
+  if (await stageSelect.isVisible().catch(() => false)) {
+    await stageSelect.selectOption('early_clinical');
+  }
+  await page.getByTestId('start-new-case').click();
+  await page.getByText(/^Polyclinics$/).click();
+  await page.getByTestId('browse-case-folder').click();
+}
+
+async function startHeadacheCase(page: Page) {
+  await choosePolyclinic(page);
+  await page.getByTestId('case-card-case-headache-001').click();
+  await page.getByTestId('enter-encounter').click({ force: true });
+  await expect(page.getByText(/Loading encounter/i)).toHaveCount(0);
+}
+
+async function completeAccessibleCase(page: Page) {
+  await startHeadacheCase(page);
+  const accessibleButton = page.getByTestId('open-examination-accessible');
+  if (await accessibleButton.isVisible().catch(() => false)) {
+    await accessibleButton.click();
+  } else {
+    await page.getByTestId('open-examination').click();
+  }
+  await page.getByTestId('history-question-ha-onset').click();
+  await page.getByRole('button', { name: /Order tests/i }).click({ force: true });
+  await page.getByTestId('order-test-bp-check').scrollIntoViewIfNeeded();
+  await page.getByTestId('order-test-bp-check').evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole('button', { name: /Results/i }).click({ force: true });
+  await page.locator('[data-testid="result-bp-check"] summary').first().evaluate((summary: HTMLElement) => summary.click());
+  await page.getByRole('button', { name: /Diagnose/i }).click();
+  await page.getByTestId('diagnosis-option-tension_headache').click();
+  await page.keyboard.press('Escape');
+  const wrapAccessible = page.getByTestId('wrap-for-assessment-accessible');
+  if (await wrapAccessible.isVisible().catch(() => false)) {
+    await wrapAccessible.click();
+  } else {
+    await page.getByTestId('wrap-for-assessment').click({ force: true });
+  }
+  await page.getByText(/Have you summarised back to the patient/i).click({ force: true }).catch(() => undefined);
+  await page.getByText(/Have you safety-netted/i).click({ force: true });
+  await page.getByTestId('submit-for-assessment').click({ force: true });
+  await expect(page.getByRole('heading', { name: /Rule-based assessment/i })).toBeVisible({ timeout: 15000 });
+}
+
+async function getFirstEncounter(page: Page) {
+  const response = await apiRequest(page, '/encounters');
+  expect(response.status).toBe(200);
+  return (response.json as Array<Record<string, unknown>>)[0];
+}
+
+async function openWorkspace(page: Page, email: string) {
+  await loginAccount(page, email);
+  await page.getByTestId('open-pilot-workspace').click();
+  await expect(page.getByText(/Educator and reviewer workspace/i)).toBeVisible();
+}
+
+async function scanForCriticalA11y(page: Page, label: string) {
+  const results = await new AxeBuilder({ page }).analyze();
+  const blocking = results.violations.filter((item) => item.impact === 'serious' || item.impact === 'critical');
+  expect(blocking, `${label} serious/critical accessibility violations`).toEqual([]);
+}
+
+async function focusAndPress(locator: Locator, key: 'Enter' | ' ') {
+  await locator.focus();
+  await locator.page().keyboard.press(key);
+}
+
+async function waitForConsentStatus(
+  page: Page,
+  expectedStatus: 'consented' | 'declined' | 'withdrawn' | 'not_answered',
+) {
+  await expect
+    .poll(async () => {
+      const response = await apiRequest(page, '/auth/research-consent-events');
+      const items = response.json as Array<Record<string, unknown>>;
+      return String(items[0]?.research_participation_status ?? '');
+    })
+    .toBe(expectedStatus);
+}
+
+async function waitForResearchExportRowCount(page: Page, expectedMinimum: number) {
+  await expect
+    .poll(async () => {
+      const response = await apiRequest(page, '/pilot/research/export');
+      const payload = response.json as { rows?: Array<unknown> };
+      return payload.rows?.length ?? 0;
+    })
+    .toBeGreaterThanOrEqual(expectedMinimum);
+}
+
+test.describe.configure({ mode: 'serial' });
+test.setTimeout(300_000);
+
+test('pilot readiness role boundaries are enforced through backend and browser-visible access', async ({ browser }) => {
+  await registerAllRoles(browser);
+
+  const learner = await browser.newPage();
+  await loginAccount(learner, emails.learner);
+  const selfPromote = await learner.evaluate(async (email) => {
+    const response = await fetch('http://127.0.0.1:8787/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'correct horse battery', display_name: 'Self Promote', role: 'pilot_admin' }),
+    });
+    return { status: response.status, json: await response.json() };
+  }, `promote.${Date.now()}@example.com`);
+  expect(selfPromote.status).toBe(200);
+  expect(selfPromote.json.user.role).toBe('learner');
+
+  await completeAccessibleCase(learner);
+  const encounter = await getFirstEncounter(learner);
+  const encounterId = String(encounter.id);
+
+  const learnerAttempts = await apiRequest(learner, '/pilot/attempts');
+  const learnerScoreDenied = await apiRequest(learner, `/pilot/attempts/${encounterId}/scores`, {
+    method: 'POST',
+    body: {
+      rubric_version: 'medlife-formative-rubric-v1',
+      review_mode: 'independent',
+      overall_score: 70,
+      overall_category: 'satisfactory',
+      domain_scores: { data_gathering: { verdict: 'satisfactory' } },
+      safety_findings: [],
+      missed_history_concepts: [],
+      investigation_evaluation: 'n/a',
+      diagnosis_evaluation: 'n/a',
+      communication_evaluation: 'n/a',
+      educator_comment: 'denied',
+      confidence_label: 'medium',
+      review_minutes: 5,
+      submit_status: 'submitted',
+    },
+  });
+  const learnerClinicalDenied = await apiRequest(learner, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: {
+      review_type: 'clinical',
+      decision: 'request_revision',
+      comments: 'deny learner',
+      fixture_label: 'development_test_fixture',
+    },
+  });
+  const learnerCurriculumDenied = await apiRequest(learner, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: {
+      review_type: 'curriculum',
+      decision: 'request_revision',
+      comments: 'deny learner',
+      mapping_version: '1.0.0',
+      fixture_label: 'development_test_fixture',
+    },
+  });
+  const learnerExportDenied = await apiRequest(learner, '/pilot/research/export');
+  expect(learnerAttempts.status).toBe(403);
+  expect(learnerScoreDenied.status).toBe(403);
+  expect(learnerClinicalDenied.status).toBe(403);
+  expect(learnerCurriculumDenied.status).toBe(403);
+  expect(learnerExportDenied.status).toBe(403);
+  await expect(learner.getByTestId('open-pilot-workspace')).toHaveCount(0);
+
+  const educator = await browser.newPage();
+  await openWorkspace(educator, emails.educator);
+  expect((await apiRequest(educator, '/pilot/attempts')).status).toBe(200);
+  expect((await apiRequest(educator, '/pilot/research/export')).status).toBe(403);
+  expect((await apiRequest(educator, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: { review_type: 'clinical', decision: 'request_revision', comments: 'deny educator', fixture_label: 'development_test_fixture' },
+  })).status).toBe(403);
+  expect((await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`, {
+    method: 'POST',
+    body: {
+      rubric_version: 'medlife-formative-rubric-v1',
+      review_mode: 'independent',
+      overall_score: 82,
+      overall_category: 'good',
+      domain_scores: { data_gathering: { verdict: 'good' } },
+      safety_findings: [],
+      missed_history_concepts: ['stress context'],
+      investigation_evaluation: 'Appropriate',
+      diagnosis_evaluation: 'Reasonable',
+      communication_evaluation: 'Clear',
+      educator_comment: 'Educator score allowed.',
+      confidence_label: 'high',
+      review_minutes: 8,
+      submit_status: 'submitted',
+    },
+  })).status).toBe(200);
+
+  const clinical = await browser.newPage();
+  await openWorkspace(clinical, emails.clinical);
+  expect((await apiRequest(clinical, '/pilot/attempts')).status).toBe(200);
+  expect((await apiRequest(clinical, `/pilot/attempts/${encounterId}/scores`, {
+    method: 'POST',
+    body: {
+      rubric_version: 'medlife-formative-rubric-v1',
+      review_mode: 'independent',
+      overall_score: 50,
+      overall_category: 'borderline',
+      domain_scores: {},
+      safety_findings: [],
+      missed_history_concepts: [],
+      investigation_evaluation: 'n/a',
+      diagnosis_evaluation: 'n/a',
+      communication_evaluation: 'n/a',
+      educator_comment: 'should deny',
+      confidence_label: 'low',
+      review_minutes: 5,
+      submit_status: 'submitted',
+    },
+  })).status).toBe(403);
+  expect((await apiRequest(clinical, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: { review_type: 'clinical', decision: 'request_revision', comments: 'Clinical request revision', fixture_label: 'development_test_fixture' },
+  })).status).toBe(200);
+  expect((await apiRequest(clinical, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: { review_type: 'curriculum', decision: 'request_revision', comments: 'deny clinical', mapping_version: '1.0.0', fixture_label: 'development_test_fixture' },
+  })).status).toBe(403);
+
+  const curriculum = await browser.newPage();
+  await openWorkspace(curriculum, emails.curriculum);
+  expect((await apiRequest(curriculum, '/pilot/attempts')).status).toBe(200);
+  expect((await apiRequest(curriculum, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: { review_type: 'curriculum', decision: 'request_revision', comments: 'Curriculum request revision', mapping_version: '1.0.0', fixture_label: 'development_test_fixture' },
+  })).status).toBe(200);
+  expect((await apiRequest(curriculum, '/pilot/cases/case-headache-001/review', {
+    method: 'POST',
+    body: { review_type: 'clinical', decision: 'request_revision', comments: 'deny curriculum', fixture_label: 'development_test_fixture' },
+  })).status).toBe(403);
+  expect((await apiRequest(curriculum, '/pilot/research/export')).status).toBe(403);
+
+  const admin = await browser.newPage();
+  await openWorkspace(admin, emails.admin);
+  const exportAllowed = await apiRequest(admin, '/pilot/research/export');
+  expect(exportAllowed.status).toBe(200);
+  expect(exportAllowed.headers['content-type']).toContain('application/json');
+  expect(exportAllowed.headers['cache-control']).toContain('no-store');
+
+  await learner.close();
+  await educator.close();
+  await clinical.close();
+  await curriculum.close();
+  await admin.close();
+});
+
+test('pilot readiness review versions, consent flow, and research export behavior remain auditable', async ({ browser }) => {
+  const learner = await browser.newPage();
+  await loginAccount(learner, emails.learner);
+  await expect(learner.getByTestId('research-participation-select')).toHaveValue('not_answered');
+  await learner.getByTestId('research-participation-select').selectOption('declined');
+  await waitForConsentStatus(learner, 'declined');
+  const declinedEvents = await apiRequest(learner, '/auth/research-consent-events');
+  const declinedList = declinedEvents.json as Array<Record<string, unknown>>;
+  expect(String(declinedList[0].research_participation_status)).toBe('declined');
+  expect(String(declinedList[0].research_consent_version)).toContain('fixture-consent-');
+
+  const historyBefore = await apiRequest(learner, '/encounters');
+  expect((historyBefore.json as Array<unknown>).length).toBeGreaterThan(0);
+
+  const admin = await browser.newPage();
+  await openWorkspace(admin, emails.admin);
+  const exportDeclined = await apiRequest(admin, '/pilot/research/export');
+  expect(JSON.stringify(exportDeclined.json)).not.toContain('research-');
+
+  await learner.bringToFront();
+  await learner.getByTestId('research-participation-select').selectOption('consented');
+  await waitForConsentStatus(learner, 'consented');
+  await completeAccessibleCase(learner);
+  const consentedEvents = await apiRequest(learner, '/auth/research-consent-events');
+  expect(String((consentedEvents.json as Array<Record<string, unknown>>)[0].research_participation_status)).toBe('consented');
+
+  await admin.bringToFront();
+  await waitForResearchExportRowCount(admin, 1);
+  const exportConsented = await apiRequest(admin, '/pilot/research/export');
+  expect(exportConsented.status).toBe(200);
+  expect(JSON.stringify(exportConsented.json)).toContain('pseudonymised');
+  expect(JSON.stringify(exportConsented.json)).toContain('research-');
+  expect(JSON.stringify(exportConsented.json)).not.toContain(emails.learner);
+  expect(JSON.stringify(exportConsented.json)).not.toContain('Learner Pilot');
+
+  await learner.bringToFront();
+  await learner.getByTestId('research-participation-select').selectOption('withdrawn');
+  await waitForConsentStatus(learner, 'withdrawn');
+  const withdrawnEvents = await apiRequest(learner, '/auth/research-consent-events');
+  expect(String((withdrawnEvents.json as Array<Record<string, unknown>>)[0].research_participation_status)).toBe('withdrawn');
+
+  await admin.bringToFront();
+  const exportWithdrawn = await apiRequest(admin, '/pilot/research/export');
+  expect(JSON.stringify(exportWithdrawn.json)).not.toContain(emails.learner);
+
+  await learner.bringToFront();
+  await learner.getByTestId('open-history').click();
+  await expect(learner.getByTestId('history-attempts')).toContainText('Aisha Rahman');
+
+  const curriculum = await browser.newPage();
+  await openWorkspace(curriculum, emails.curriculum);
+  await curriculum.getByTestId('case-review-case-select').selectOption('case-headache-001');
+  await curriculum.getByTestId('case-review-type-select').selectOption('curriculum');
+  await curriculum.getByTestId('case-review-decision-select').selectOption('request_revision');
+  await curriculum.getByTestId('case-review-comments').fill('Curriculum version 1.0.0 needs revision.');
+  await curriculum.getByTestId('case-review-fixture-label').fill('development_test_fixture');
+  await curriculum.getByTestId('save-case-review').click();
+  const revisedCurriculum = await apiRequest(curriculum, '/test-support/seed-case-review', {
+    method: 'POST',
+    body: {
+      case_id: 'case-headache-001',
+      case_version: '1.0.0',
+      review_type: 'curriculum',
+      decision: 'curriculum_approved',
+      comments: 'Revised mapping development fixture approved.',
+      mapping_version: '1.0.1',
+      fixture_label: 'development_test_fixture',
+    },
+  });
+  expect(revisedCurriculum.status).toBe(200);
+  const curriculumReviews = await apiRequest(curriculum, '/pilot/case-reviews?case_id=case-headache-001');
+  const curriculumRecords = curriculumReviews.json as Array<Record<string, unknown>>;
+  expect(curriculumRecords.some((item) => item.review_type === 'curriculum' && item.mapping_version === '1.0.0')).toBeTruthy();
+  expect(curriculumRecords.some((item) => item.review_type === 'curriculum' && item.mapping_version === '1.0.1')).toBeTruthy();
+  expect(curriculumRecords.some((item) => item.fixture_label === 'development_test_fixture')).toBeTruthy();
+
+  const clinical = await browser.newPage();
+  await openWorkspace(clinical, emails.clinical);
+  const revisedClinical = await apiRequest(clinical, '/test-support/seed-case-review', {
+    method: 'POST',
+    body: {
+      case_id: 'case-headache-001',
+      case_version: '1.0.1',
+      review_type: 'clinical',
+      decision: 'clinically_reviewed',
+      comments: 'Revised clinical case version approved as development fixture.',
+      fixture_label: 'development_test_fixture',
+    },
+  });
+  expect(revisedClinical.status).toBe(200);
+  const clinicalReviews = await apiRequest(clinical, '/pilot/case-reviews?case_id=case-headache-001');
+  const clinicalRecords = clinicalReviews.json as Array<Record<string, unknown>>;
+  expect(clinicalRecords.some((item) => item.review_type === 'clinical' && item.case_version === '1.0.0')).toBeTruthy();
+  expect(clinicalRecords.some((item) => item.review_type === 'clinical' && item.case_version === '1.0.1')).toBeTruthy();
+
+  await curriculum.bringToFront();
+  await expect(curriculum.getByTestId('readiness-curriculum-status')).toContainText(/academic review required/i);
+  await expect(curriculum.getByTestId('readiness-clinical-status')).toContainText(/clinical review required/i);
+  await expect(curriculum.getByTestId('readiness-simulation-status')).toContainText(/simulation review required|review required|pending/i);
+  await expect(curriculum.getByTestId('readiness-ai-status')).toContainText(/ai review required|review required|pending/i);
+  await expect(curriculum.getByTestId('readiness-pilot-status')).not.toContainText(/pilot ready/i);
+
+  await learner.bringToFront();
+  const attemptsAfterReviews = await apiRequest(learner, '/encounters');
+  const firstAttempt = (attemptsAfterReviews.json as Array<Record<string, any>>)[0];
+  expect(String(firstAttempt.case_version)).toBe('1.0.0');
+  expect(String(firstAttempt.completion_snapshot.case.curriculumAlignment.mappingVersion)).toBe('1.0.0');
+
+  await learner.close();
+  await admin.close();
+  await curriculum.close();
+  await clinical.close();
+});
+
+test('pilot readiness educator scoring stays independent, auditable, and distinguishable from automated assessment', async ({ browser }) => {
+  const educator = await browser.newPage();
+  await openWorkspace(educator, emails.educator);
+  await expect(educator.getByLabel('Overall category')).toHaveValue('');
+  await expect(educator.getByLabel('Overall score')).toHaveValue('');
+
+  const attemptResponse = await apiRequest(educator, '/pilot/attempts');
+  const attempt = (attemptResponse.json as Array<Record<string, unknown>>)[0];
+  const encounterId = String(attempt.id);
+
+  await educator.getByText('Aisha Rahman').first().click();
+  await educator.getByLabel('Overall category').fill('satisfactory');
+  await educator.getByLabel('Overall score').fill('74');
+  await educator.getByLabel('Data gathering verdict').fill('satisfactory');
+  await educator.getByLabel('Clinical management verdict').fill('satisfactory');
+  await educator.getByLabel('Communication verdict').fill('good');
+  await educator.getByLabel('Missed history concepts').fill('stress context');
+  await educator.getByLabel('Safety findings').fill('no immediate safety breach');
+  await educator.getByLabel('Investigation evaluation').fill('Appropriate for the presented complaint.');
+  await educator.getByLabel('Diagnosis evaluation').fill('Working diagnosis is reasonable.');
+  await educator.getByLabel('Communication evaluation').fill('Clear and supportive.');
+  await educator.getByLabel('Independent educator feedback').fill('Independent score recorded in the pilot workspace.');
+  await educator.getByTestId('save-independent-score').click();
+  await expect(educator.getByText(/Independent score/i)).toBeVisible();
+
+  await educator.getByLabel('Educator review comment').fill('Automated feedback partly matches educator judgement.');
+  await educator.getByTestId('save-educator-review').click();
+
+  const scoresAfterFirst = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`);
+  const firstScores = scoresAfterFirst.json as Array<Record<string, any>>;
+  expect(firstScores.length).toBeGreaterThanOrEqual(1);
+  const originalScoreId = String(firstScores[0].id);
+
+  const admin = await browser.newPage();
+  await openWorkspace(admin, emails.admin);
+  const secondScore = await apiRequest(admin, `/pilot/attempts/${encounterId}/scores`, {
+    method: 'POST',
+    body: {
+      rubric_version: 'medlife-formative-rubric-v1',
+      review_mode: 'independent',
+      overall_score: 68,
+      overall_category: 'borderline',
+      domain_scores: { interpersonal: { verdict: 'good' } },
+      safety_findings: ['follow-up advice too vague'],
+      missed_history_concepts: ['stress context'],
+      investigation_evaluation: 'Acceptable but incomplete',
+      diagnosis_evaluation: 'Reasonable differential narrowing',
+      communication_evaluation: 'Supportive',
+      educator_comment: 'Second reviewer score stored separately.',
+      confidence_label: 'medium',
+      review_minutes: 7,
+      submit_status: 'submitted',
+    },
+  });
+  expect(secondScore.status).toBe(200);
+
+  const amendedScore = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`, {
+    method: 'POST',
+    body: {
+      rubric_version: 'medlife-formative-rubric-v1',
+      review_mode: 'independent',
+      overall_score: 76,
+      overall_category: 'good',
+      domain_scores: { data_gathering: { verdict: 'good' } },
+      safety_findings: [],
+      missed_history_concepts: ['stress context'],
+      investigation_evaluation: 'Improved after re-read',
+      diagnosis_evaluation: 'Still reasonable',
+      communication_evaluation: 'Strong rapport',
+      educator_comment: 'Amended educator score kept as a new audit entry.',
+      confidence_label: 'high',
+      review_minutes: 5,
+      submit_status: 'submitted',
+      amended_from_score_id: originalScoreId,
+    },
+  });
+  expect(amendedScore.status).toBe(200);
+
+  const scoresFinal = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`);
+  const finalScores = scoresFinal.json as Array<Record<string, any>>;
+  expect(finalScores.length).toBeGreaterThanOrEqual(3);
+  expect(finalScores.some((item) => String(item.id) === originalScoreId)).toBeTruthy();
+  expect(finalScores.some((item) => String(item.amended_from_score_id ?? '') === originalScoreId)).toBeTruthy();
+
+  const reviewsFinal = await apiRequest(educator, `/pilot/attempts/${encounterId}/reviews`);
+  expect(JSON.stringify(reviewsFinal.json)).toContain('partly matches educator judgement');
+
+  const analytics = await apiRequest(educator, '/pilot/analytics');
+  expect(String((analytics.json as Record<string, any>).agreement_metrics.sample_size)).not.toBe('0');
+
+  const learner = await browser.newPage();
+  await loginAccount(learner, emails.learner);
+  await learner.getByTestId('open-history').click();
+  await learner.getByTestId('history-attempts').getByText('Aisha Rahman').first().click();
+  await expect(learner.getByText(/No educator review has been recorded/i)).toHaveCount(0);
+  await expect(learner.getByText(/Automated feedback partly matches educator judgement\./i)).toBeVisible();
+  await expect(learner.getByTestId('evidence-integrity-line')).toBeVisible();
+
+  await educator.close();
+  await admin.close();
+  await learner.close();
+});
+
+test('pilot readiness non-3d journey, keyboard flow, and accessibility scans stay functional without WebGL', async ({ browser }) => {
+  const page = await browser.newPage();
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function patched(type: string, ...args: unknown[]) {
+      if (type === 'webgl' || type === 'webgl2') {
+        throw new Error('webgl blocked for pilot-readiness non-3d proof');
+      }
+      return original.call(this, type, ...args as []);
+    };
+  });
+
+  await loginAccount(page, emails.learner);
+  await scanForCriticalA11y(page, 'home');
+
+  await focusAndPress(page.getByTestId('preference-non-3d'), ' ');
+  await focusAndPress(page.getByTestId('preference-low-bandwidth'), ' ');
+  await focusAndPress(page.getByTestId('preference-reduced-motion'), ' ');
+  await focusAndPress(page.getByTestId('preference-background-audio'), ' ');
+  await page.getByTestId('learner-stage-select').focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByTestId('low-bandwidth-honesty-note')).toContainText(/optimisation incomplete/i);
+
+  await focusAndPress(page.getByTestId('start-new-case'), 'Enter');
+  await page.getByText(/^Polyclinics$/).click();
+  await page.getByTestId('browse-case-folder').click();
+  await scanForCriticalA11y(page, 'case library');
+
+  await focusAndPress(page.getByTestId('case-card-case-headache-001'), 'Enter');
+  await scanForCriticalA11y(page, 'brief');
+  await expect(page.getByTestId('brief-accessibility-path')).toContainText(/chart-first encounter/i);
+  await page.getByTestId('enter-encounter').click({ force: true });
+  await expect(page.getByText(/Non-3D consultation/i)).toBeVisible();
+  await expect(page.getByTestId('low-bandwidth-encounter-note')).toContainText(/optimisation incomplete/i);
+  await scanForCriticalA11y(page, 'non-3d encounter');
+
+  await focusAndPress(page.getByTestId('open-examination-accessible'), 'Enter');
+  await page.getByTestId('history-question-ha-onset').click();
+  await page.getByRole('button', { name: /Order tests/i }).click({ force: true });
+  await page.getByTestId('order-test-bp-check').evaluate((button: HTMLButtonElement) => button.click());
+  await page.getByRole('button', { name: /Diagnose/i }).click();
+  await page.getByTestId('diagnosis-option-tension_headache').click();
+  await page.keyboard.press('Escape');
+  await page.getByTestId('wrap-for-assessment-accessible').click();
+  await page.getByText(/Have you safety-netted/i).click({ force: true });
+  await page.getByTestId('submit-for-assessment').click({ force: true });
+  await expect(page.getByRole('heading', { name: /Rule-based assessment/i })).toBeVisible({ timeout: 15000 });
+  await scanForCriticalA11y(page, 'debrief');
+
+  const reflectionPanel = page.getByTestId('learner-reflection-panel');
+  await reflectionPanel.getByLabel('What went well?').fill('Non-3D history taking remained usable.');
+  await reflectionPanel.getByLabel('What will you practise next?').fill('Safer follow-up wording.');
+  await page.getByTestId('open-history').click();
+  await scanForCriticalA11y(page, 'history');
+  await page.getByTestId('history-attempts').getByText('Aisha Rahman').first().click();
+  await expect(page.getByTestId('learner-reflection-panel')).toContainText(/What went well/i);
+  await page.reload();
+  await waitForApp(page);
+  await page.getByTestId('open-history').click();
+  await page.getByTestId('history-attempts').getByText('Aisha Rahman').first().click();
+  await expect(page.getByTestId('evidence-inspector')).toBeVisible();
+
+  const admin = await browser.newPage();
+  await openWorkspace(admin, emails.admin);
+  await scanForCriticalA11y(admin, 'educator workspace');
+  throwIfForcedFailure('pilot-consent-export');
+  await admin.close();
+  await page.close();
+});

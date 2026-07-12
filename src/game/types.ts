@@ -12,6 +12,7 @@ export type Screen =
   | 'endConfirm'
   | 'debrief'
   | 'history'
+  | 'educatorWorkspace'
   | 'agenticRounds'
   | 'agentTopology';
 
@@ -42,6 +43,111 @@ export interface AssessmentCompatibility {
   allowedHistoryFactIds: string[];
   acceptableTreatmentIds: string[];
   criticalTreatmentIds: string[];
+}
+
+export interface PublicSourceCurriculumMapping {
+  institutionProfileId: string;
+  sourceId: string;
+  sourceType: string;
+  approvalStatus: string;
+  confidenceLevel: 'low' | 'medium' | 'high';
+  rationale: string;
+  internalDocumentRequired: boolean;
+}
+
+export interface CurriculumAlignment {
+  mappingVersion: string;
+  targetPrograms: string[];
+  targetYears: number[];
+  stages: string[];
+  specialties: string[];
+  rotations: string[];
+  competencyDomains: string[];
+  learningOutcomes: string[];
+  clinicalProblems: string[];
+  expectedPerformanceLevel: string;
+  prerequisites: string[];
+  estimatedStudentLearningTimeMin: number;
+  formativeOrSummative: string;
+  publicSourceMappings: PublicSourceCurriculumMapping[];
+  internalMappings: Array<Record<string, unknown>>;
+  mappingStatus: string;
+  mappingReviewers: string[];
+  mappingReviewDate?: string | null;
+}
+
+export interface PrebriefDesign {
+  learningObjectives: string[];
+  expectedLearnerLevel: string;
+  prerequisites: string[];
+  estimatedDurationMin: number;
+  simulationLimitations: string[];
+  aiModeExplanation: string;
+  confidentialityExpectation: string;
+  psychologicalSafety: string;
+  formativeAssessmentNotice: string;
+  availableTools: string[];
+  professionalBehaviour: string[];
+}
+
+export interface DebriefLearningDesign {
+  reflectionPrompts: string[];
+  suggestedResources: string[];
+  recommendedNextCaseIds: string[];
+}
+
+export interface LearningDesign {
+  pathwayTags: string[];
+  recommendedUse: string;
+  prebrief: PrebriefDesign;
+  debrief: DebriefLearningDesign;
+}
+
+export interface AssessmentBlueprintDimension {
+  label: string;
+  evidenceType: 'observed' | 'inferred' | 'not_observable' | 'not_assessed' | 'learner_authored';
+}
+
+export interface AssessmentBlueprint {
+  formativeLabels: string[];
+  aiRoles: string[];
+  dimensions: AssessmentBlueprintDimension[];
+  modalityLimits: string[];
+}
+
+export interface PatientSafetyProfile {
+  redFlags: string[];
+  timeCriticalActions: string[];
+  unsafeDelays: string[];
+  contraindications: string[];
+  allergyChecks: string[];
+  medicationSafety: string[];
+  escalationRequirements: string[];
+  referralRequirements: string[];
+  safetyNetting: string[];
+  followUp: string[];
+  uncertaintyManagement: string[];
+  learnerCompetenceLimits: string[];
+  safetyRuleApprovalStatus: string;
+}
+
+export interface MalaysianContextProfile {
+  setting: string;
+  contextTags: string[];
+  culturalSafeguards: string[];
+  costConsiderations: string[];
+  referralContext: string[];
+  referenceStatus: string;
+}
+
+export interface PilotReadinessProfile {
+  candidateTargetYear: number;
+  candidateStage: string;
+  clinicalReviewStatus: string;
+  curriculumReviewStatus: string;
+  simulationReviewStatus: string;
+  aiReviewStatus: string;
+  pilotReadyStatus: string;
 }
 
 export type CaseStatus = 'draft' | 'in_review' | 'approved' | 'retired' | 'development_only';
@@ -96,6 +202,12 @@ export interface PatientCase {
   diagnosisOptions: string[];
   assessmentCompatibility: AssessmentCompatibility;
   rubric?: CaseRubric;
+  curriculumAlignment: CurriculumAlignment;
+  learningDesign: LearningDesign;
+  assessmentBlueprint: AssessmentBlueprint;
+  patientSafety: PatientSafetyProfile;
+  malaysianContext: MalaysianContextProfile;
+  pilotReadiness: PilotReadinessProfile;
 }
 
 export interface Prescription {
@@ -152,6 +264,14 @@ export interface FallbackTransition {
   timestamp: number;
 }
 
+export interface LearnerReflection {
+  whatWentWell: string;
+  missedInformation: string;
+  whatDoDifferently: string;
+  weakestReasoningPart: string;
+  nextPracticeFocus: string;
+}
+
 export interface ActivePatient {
   encounterId: string;
   bedIndex: number;
@@ -172,6 +292,7 @@ export interface ActivePatient {
   transcript: EncounterTranscriptTurn[];
   disclosureReceipts: DisclosureReceipt[];
   evidenceIntegrityStatus: EvidenceIntegrityStatus;
+  learnerReflection?: LearnerReflection | null;
   completedAt?: number | null;
   endConfirm?: EndConfirmChecks | null;
 }

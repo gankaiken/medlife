@@ -1,6 +1,7 @@
 import learnerCatalog from '../../shared/learner_case_catalog.json' with { type: 'json' };
 import type { PatientCase } from '../game/types.ts';
 import { CLINIC_IDS, type ClinicId } from '../game/clinic.ts';
+import { getCaseEnhancement } from './caseEnhancements.ts';
 
 type LearnerCatalogCase = {
   case_id: string;
@@ -37,6 +38,7 @@ type LearnerCatalog = {
 };
 
 function mapLearnerCase(item: LearnerCatalogCase): PatientCase {
+  const enhancement = getCaseEnhancement(item.case_id);
   return {
     id: item.case_id,
     caseVersion: item.case_version,
@@ -64,6 +66,12 @@ function mapLearnerCase(item: LearnerCatalogCase): PatientCase {
     testResults: item.testResults,
     diagnosisOptions: item.diagnosisOptions,
     assessmentCompatibility: item.assessmentCompatibility,
+    curriculumAlignment: enhancement.curriculumAlignment,
+    learningDesign: enhancement.learningDesign,
+    assessmentBlueprint: enhancement.assessmentBlueprint,
+    patientSafety: enhancement.patientSafety,
+    malaysianContext: enhancement.malaysianContext,
+    pilotReadiness: enhancement.pilotReadiness,
   };
 }
 

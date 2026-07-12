@@ -194,6 +194,22 @@ export function HistoryScreen() {
                       store.viewEvalHistory(mapped.id);
                     }
                   }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      const server = session?.authenticated
+                        ? serverAttempts.find((attempt) => String(attempt.id) === item.id)
+                        : null;
+                      const mapped = server ? mapServerAttemptToEvalHistoryEntry(server) : item;
+                      if (mapped) {
+                        saveEvalHistory(mapped);
+                        store.viewEvalHistory(mapped.id);
+                      }
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`Open history attempt ${item.caseName}`}
                   style={{ cursor: 'pointer' }}
                   data-testid={`history-attempt-${item.id}`}
                 >

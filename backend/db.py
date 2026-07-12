@@ -76,6 +76,47 @@ def run_migrations(conn: sqlite3.Connection) -> list[str]:
     return newly_applied
 
 
+def schema_health_error(conn: sqlite3.Connection) -> str | None:
+    required_tables = {
+        "schema_migrations": (),
+        "users": ("password_updated_at", "role"),
+        "sessions": ("idle_expires_at",),
+        "encounters": (),
+        "encounter_events": (),
+        "disclosure_receipts": (),
+        "assessments": (),
+        "local_history_migrations": (),
+        "security_audit_events": (),
+        "user_preferences": ("research_consent_version", "research_consented_at"),
+        "attempt_reviews": (),
+        "case_review_records": ("institution_profile_version", "source_registry_version"),
+        "research_consent_events": (),
+        "educator_attempt_scores": (),
+    }
+    for table_name, required_columns in required_tables.items():
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        if row is None:
+            return f"missing table: {table_name}"
+        if not required_columns:
+            continue
+        columns = {
+            str(item["name"])
+            for item in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+        }
+        for column_name in required_columns:
+            if column_name not in columns:
+                return f"missing column: {table_name}.{column_name}"
+    applied = applied_migrations(conn)
+    latest = [path.name for path in migration_files()]
+    missing = [name for name in latest if name not in applied]
+    if missing:
+        return f"missing migrations: {','.join(missing)}"
+    return None
+
+
 @contextmanager
 def transaction(conn: sqlite3.Connection, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
     try:

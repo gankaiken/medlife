@@ -1,0 +1,119 @@
+{
+  "schema_version": "medlife.case-curriculum-mappings.v1",
+  "cases": [
+    {
+      "case_id": "case-headache-001",
+      "mapping_version": "1.0.0",
+      "candidate_target_year": 3,
+      "candidate_stage_of_training": "early_clinical",
+      "discipline": "Primary care / neurology",
+      "presenting_problem": "Headache without red flags",
+      "difficulty": "introductory",
+      "expected_prerequisite_knowledge": [
+        "Basic headache symptom analysis",
+        "Recognising neurological red flags",
+        "Patient-centred concern exploration"
+      ],
+      "competency_domains": [
+        "communication",
+        "history_taking",
+        "clinical_reasoning",
+        "patient_safety",
+        "professionalism",
+        "reflection"
+      ],
+      "patient_safety_outcomes": [
+        "Screen for red flags before reassurance",
+        "Provide safety-net advice if symptoms change"
+      ],
+      "malaysian_medical_council_relationship": "candidate_regulatory_relevance_only",
+      "monash_candidate_relationship": "candidate_public_source_mapping",
+      "estimated_completion_time_min": 12,
+      "recommended_learning_sequence": "History-taking foundation -> Primary-care consultation -> Acute red-flag recognition",
+      "recommended_teaching_position": "Before or alongside early supervised clinical teaching",
+      "formative_assessment_status": "Formative practice",
+      "clinical_review_status": "clinical_review_required",
+      "curriculum_review_status": "academic_review_required",
+      "rationale": "Suitable as an early clinical primary-care case emphasising focused history, concern exploration, and safe reassurance.",
+      "source": "monash-medicine-public-course-description",
+      "confidence": "medium",
+      "reviewer_status": "academic_review_required"
+    },
+    {
+      "case_id": "case-anemia-002",
+      "mapping_version": "1.0.0",
+      "candidate_target_year": 3,
+      "candidate_stage_of_training": "core_clinical_rotation",
+      "discipline": "Primary care / internal medicine",
+      "presenting_problem": "Fatigue with likely iron deficiency anaemia",
+      "difficulty": "intermediate",
+      "expected_prerequisite_knowledge": [
+        "Anaemia symptom review",
+        "Basic interpretation of full blood count results",
+        "Safe follow-up planning"
+      ],
+      "competency_domains": [
+        "history_taking",
+        "clinical_reasoning",
+        "investigation_strategy",
+        "management_planning",
+        "patient_safety",
+        "reflection"
+      ],
+      "patient_safety_outcomes": [
+        "Plan follow-up for abnormal results",
+        "Escalate if breathlessness worsens or bleeding emerges"
+      ],
+      "malaysian_medical_council_relationship": "candidate_regulatory_relevance_only",
+      "monash_candidate_relationship": "candidate_public_source_mapping",
+      "estimated_completion_time_min": 14,
+      "recommended_learning_sequence": "Clinical reasoning foundation -> Primary-care consultation -> Patient safety",
+      "recommended_teaching_position": "After introductory medicine tutorials and before ward-based anaemia review",
+      "formative_assessment_status": "Formative practice",
+      "clinical_review_status": "clinical_review_required",
+      "curriculum_review_status": "academic_review_required",
+      "rationale": "Fits transition into core clinical medicine because it links symptom review, lab strategy, counselling, and follow-up safety.",
+      "source": "monash-medicine-public-course-description",
+      "confidence": "medium",
+      "reviewer_status": "academic_review_required"
+    },
+    {
+      "case_id": "case-cough-003",
+      "mapping_version": "1.0.0",
+      "candidate_target_year": 3,
+      "candidate_stage_of_training": "core_clinical_rotation",
+      "discipline": "Primary care / respiratory medicine",
+      "presenting_problem": "Acute cough with fever and pleuritic pain",
+      "difficulty": "intermediate",
+      "expected_prerequisite_knowledge": [
+        "Focused respiratory history",
+        "Recognition of breathlessness severity",
+        "Safety-netting for acute infection"
+      ],
+      "competency_domains": [
+        "communication",
+        "history_taking",
+        "clinical_reasoning",
+        "investigation_strategy",
+        "management_planning",
+        "patient_safety"
+      ],
+      "patient_safety_outcomes": [
+        "Recognise red flags requiring escalation",
+        "Give appropriate return precautions and follow-up"
+      ],
+      "malaysian_medical_council_relationship": "candidate_regulatory_relevance_only",
+      "monash_candidate_relationship": "candidate_public_source_mapping",
+      "estimated_completion_time_min": 13,
+      "recommended_learning_sequence": "History-taking foundation -> Acute red-flag recognition -> Patient safety",
+      "recommended_teaching_position": "Alongside early respiratory bedside teaching or ambulatory acute-care sessions",
+      "formative_assessment_status": "Formative practice",
+      "clinical_review_status": "clinical_review_required",
+      "curriculum_review_status": "academic_review_required",
+      "rationale": "Supports early clinical reasoning and escalation judgement for a common ambulatory respiratory presentation.",
+      "source": "monash-jcsmhs-public-school-page",
+      "confidence": "medium",
+      "reviewer_status": "academic_review_required"
+    }
+  ]
+}

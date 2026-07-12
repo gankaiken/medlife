@@ -7,7 +7,17 @@ const localEvaluation = JSON.parse(
   readFileSync(resolve(fixtureDir, 'case-headache-001.expected.json'), 'utf8'),
 );
 
+function throwIfForcedFailure(marker: string) {
+  if (process.env.MEDLIFE_E2E_FORCE_FAILURE === marker) {
+    throw new Error(`Deliberate real-suite failure triggered for cleanup verification: ${marker}`);
+  }
+}
+
 async function completeSplashAndOnboarding(page: Page) {
+  await expect.poll(async () => {
+    const response = await page.request.get('/');
+    return response.status();
+  }).toBe(200);
   await page.goto('/');
   await page.getByTestId('enter-training-floor').click({ force: true });
   await page.getByTestId('onboarding-next').click();
@@ -30,6 +40,17 @@ async function loginLearner(page: Page, suffix: string) {
   await page.getByTestId('auth-password').fill('correct horse battery');
   await page.getByTestId('login-button').click();
   await expect(page.getByTestId('auth-panel')).toContainText(`learner.${suffix}@example.com`, { timeout: 15000 });
+}
+
+async function waitForSignedOutSession(page: Page) {
+  await page.waitForFunction(async () => {
+    const me = await fetch('http://127.0.0.1:8787/auth/me', { credentials: 'include' });
+    if (!me.ok) return false;
+    const session = (await me.json()) as { authenticated?: boolean };
+    if (session.authenticated) return false;
+    const protectedResponse = await fetch('http://127.0.0.1:8787/encounters', { credentials: 'include' });
+    return protectedResponse.status === 401;
+  });
 }
 
 async function startHeadacheCase(page: Page) {
@@ -91,6 +112,7 @@ test('real backend persists a completed authenticated attempt across logout and 
   await page.getByTitle('Open profile').click();
   await expect(page.getByTestId('auth-panel')).toContainText('learner.persist@example.com');
   await page.getByTestId('logout-button').click();
+  await waitForSignedOutSession(page);
   await expect(page.getByTestId('auth-panel')).toContainText('Signed-out local mode stays available', { timeout: 15000 });
 
   await loginLearner(page, 'persist');
@@ -210,15 +232,29 @@ test('real backend offers explicit local-history migration with honest legacy in
   await registerLearner(page, 'migration');
 
   page.once('dialog', (dialog) => dialog.accept());
+  const migrationResponse = page.waitForResponse((response) => response.url().includes('/auth/migrate-local') && response.ok());
   await page.getByTestId('migrate-local-history').click();
+  const migrationPayload = await (await migrationResponse).json() as Array<{ id?: string; integrity_status?: string }>;
+  expect(migrationPayload[0]?.id).toBe('migrated-local-import-1');
+  await expect.poll(async () => {
+    return await page.evaluate(async () => {
+      const response = await fetch('http://127.0.0.1:8787/encounters', {
+        credentials: 'include',
+      });
+      const attempts = (await response.json()) as Array<{ id?: string; integrity_status?: string }>;
+      return attempts[0]?.id ?? '';
+    });
+  }).toBe('migrated-local-import-1');
   await expect(page.getByTestId('recent-attempts')).toContainText('Aisha Rahman');
   const attempts = await page.evaluate(async () => {
     const response = await fetch('http://127.0.0.1:8787/encounters', {
       credentials: 'include',
     });
-    return (await response.json()) as Array<{ integrity_status?: string }>;
+    return (await response.json()) as Array<{ id?: string; integrity_status?: string }>;
   });
+  expect(attempts[0]?.id).toBe('migrated-local-import-1');
   expect(attempts[0]?.integrity_status).toBe('server_recorded_legacy_evidence');
+  throwIfForcedFailure('real-migration');
 });
 
 test('real backend flow shows pending sync during a forced save failure and recovers on retry', async ({ page }) => {

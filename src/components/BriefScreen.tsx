@@ -1,6 +1,7 @@
 import { DoodleScatter, PatientFace, TopBar } from './primitives';
 import { getCase, getPatientCase } from '../data/cases';
 import { store, useStore, useTweaks } from '../game/store';
+import { useAuth } from '../runtime/AuthProvider';
 
 interface VitalCard {
   label: string;
@@ -22,6 +23,7 @@ function buildVitals(p?: { hr: number; bp: string; spo2: number; temp: number; r
 
 export function BriefScreen() {
   const tweaks = useTweaks();
+  const { preferences } = useAuth();
   const caseId = useStore((s) => s.selectedCaseId);
   const c = getCase(caseId);
   const patient = getPatientCase(caseId);
@@ -276,6 +278,71 @@ export function BriefScreen() {
               ))}
             </div>
           </div>
+
+          {patient && (
+            <>
+              <div className="plush" style={{ padding: 14 }}>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 11,
+                    color: 'var(--ink-2)',
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                  }}
+                >
+                  Prebrief
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <span className="chip butter">{patient.learningDesign.prebrief.expectedLearnerLevel}</span>
+                  {patient.assessmentBlueprint.formativeLabels.map((label) => (
+                    <span key={label} className="chip">{label}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, color: 'var(--ink-2)' }}>
+                  {patient.learningDesign.recommendedUse}
+                </div>
+                <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 13, fontWeight: 700, lineHeight: 1.6 }}>
+                  {patient.learningDesign.prebrief.learningObjectives.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+
+              <div className="plush" style={{ padding: 14 }}>
+                <div
+                  style={{
+                    fontWeight: 800,
+                    fontSize: 11,
+                    color: 'var(--ink-2)',
+                    letterSpacing: '.06em',
+                    textTransform: 'uppercase',
+                    marginBottom: 8,
+                  }}
+                >
+                  Prerequisites and safeguards
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.55, color: 'var(--ink-2)' }}>
+                  Stage recommendation: {patient.pilotReadiness.candidateStage.replace(/_/g, ' ')} · Your current stage: {preferences.learner_stage.replace(/_/g, ' ')}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                  {patient.curriculumAlignment.prerequisites.map((item) => (
+                    <span key={item} className="chip sky">{item}</span>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 10 }}>
+                  AI disclosure: {patient.learningDesign.prebrief.aiModeExplanation}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 6 }}>
+                  Modality limits: {patient.assessmentBlueprint.modalityLimits.join(' ')}
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 6 }}>
+                  <span data-testid="brief-accessibility-path">
+                    Accessibility path: {preferences.non_3d_mode || preferences.low_bandwidth_mode ? 'Non-3D / low-bandwidth mode will open the chart-first encounter.' : '3D encounter is available, but not required to complete the case.'}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
 
           <div
             className="plush"

@@ -1,0 +1,32 @@
+{
+  "schema_version": "medlife.curriculum-sources.v1",
+  "sources": [
+    {
+      "source_id": "monash-medicine-public-course-description",
+      "institution_profile_id": "monash-medicine-candidate-malaysia",
+      "title": "Bachelor of Medical Science and Doctor of Medicine public course description",
+      "source_type": "official_public_source",
+      "public_or_internal_source": "public",
+      "status": "verified_public_source",
+      "notes": "Used only for candidate mapping. Internal curriculum documents still required for official approval."
+    },
+    {
+      "source_id": "monash-jcsmhs-public-school-page",
+      "institution_profile_id": "monash-medicine-candidate-malaysia",
+      "title": "Jeffrey Cheah School of Medicine and Health Sciences public overview",
+      "source_type": "official_public_source",
+      "public_or_internal_source": "public",
+      "status": "verified_public_source",
+      "notes": "Used to support candidate stage, exposure, and context descriptions only."
+    },
+    {
+      "source_id": "malaysian-community-primary-care-context",
+      "institution_profile_id": "generic-malaysia-undergraduate-medicine",
+      "title": "Internal Medlife contextual framing for Malaysian primary-care teaching",
+      "source_type": "academic_interpretation",
+      "public_or_internal_source": "public",
+      "status": "internal_authoring_note",
+      "notes": "Requires clinical review before pilot use."
+    }
+  ]
+}

@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
 import { DoodleScatter, PatientFace, TopBar } from './primitives';
 import { CASES, CONDITION_COLORS, type Case } from '../data/cases';
+import { getLearnerCase } from '../data/learnerCases';
 import { CLINIC_IDS, CLINIC_LABELS, type ClinicId } from '../game/clinic';
 import { store, useTweaks } from '../game/store';
+import { useAuth } from '../runtime/AuthProvider';
 
 interface CaseCardProps {
   c: Case;
@@ -18,6 +20,15 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
     <div
       className="tap popin"
       onClick={() => store.selectCase(c.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          store.selectCase(c.id);
+        }
+      }}
+      role="button"
+      tabIndex={0}
+      aria-label={`Open case ${c.name}`}
       data-testid={`case-card-${c.id}`}
       style={{ animationDelay: `${delay}s`, position: 'relative' }}
     >
@@ -182,6 +193,7 @@ const CLINIC_ICON: Record<ClinicId, string> = {
 
 export function CaseLibraryScreen() {
   const tweaks = useTweaks();
+  const { preferences } = useAuth();
   const [filter, setFilter] = useState<ClinicFilter>('all');
 
   const grouped = useMemo(() => {
@@ -198,20 +210,26 @@ export function CaseLibraryScreen() {
   }, []);
 
   const visibleGroups = useMemo<Array<[ClinicId, Case[]]>>(() => {
+    const matchesStage = (item: Case) => {
+      const detail = getLearnerCase(item.id);
+      return !detail || detail.pilotReadiness.candidateStage === preferences.learner_stage;
+    };
     if (filter === 'red-flag') {
       const out: Array<[ClinicId, Case[]]> = [];
       for (const [clinic, list] of grouped) {
-        const reds = list.filter((c) => c.tags.some((t) => t.toLowerCase().includes('red flag')));
+        const reds = list.filter((c) => matchesStage(c) && c.tags.some((t) => t.toLowerCase().includes('red flag')));
         if (reds.length) out.push([clinic, reds]);
       }
       return out;
     }
     if (filter === 'all') {
-      return Array.from(grouped.entries()).filter(([, list]) => list.length > 0);
+      return Array.from(grouped.entries())
+        .map(([clinic, list]) => [clinic, list.filter(matchesStage)] as [ClinicId, Case[]])
+        .filter(([, list]) => list.length > 0);
     }
-    const list = grouped.get(filter as ClinicId) ?? [];
+    const list = (grouped.get(filter as ClinicId) ?? []).filter(matchesStage);
     return list.length ? [[filter as ClinicId, list]] : [];
-  }, [grouped, filter]);
+  }, [grouped, filter, preferences.learner_stage]);
 
   const totalVisible = visibleGroups.reduce((n, [, list]) => n + list.length, 0);
 
@@ -279,6 +297,7 @@ export function CaseLibraryScreen() {
           alignItems: 'center',
         }}
       >
+        <span className="chip butter">Stage: {preferences.learner_stage.replace(/_/g, ' ')}</span>
         {clinicChips.map((chip) => (
           <span
             key={chip.id}

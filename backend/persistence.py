@@ -79,7 +79,15 @@ class SessionRecord:
 
 
 @with_db_lock
-def create_user(conn: sqlite3.Connection, *, email: str, display_name: str, password_hash: str, password_salt: str) -> dict[str, Any]:
+def create_user(
+    conn: sqlite3.Connection,
+    *,
+    email: str,
+    display_name: str,
+    password_hash: str,
+    password_salt: str,
+    role: str = "learner",
+) -> dict[str, Any]:
     user_id = f"user-{uuid.uuid4()}"
     now = utc_now_iso()
     with transaction(conn, immediate=True):
@@ -87,8 +95,8 @@ def create_user(conn: sqlite3.Connection, *, email: str, display_name: str, pass
             """
             INSERT INTO users (
                 id, email, email_normalized, display_name, password_hash, password_salt,
-                status, created_at, updated_at, password_updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+                status, created_at, updated_at, password_updated_at, role
+            ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -100,7 +108,18 @@ def create_user(conn: sqlite3.Connection, *, email: str, display_name: str, pass
                 now,
                 now,
                 now,
+                role,
             ),
+        )
+        conn.execute(
+            """
+            INSERT INTO user_preferences (
+                user_id, learner_stage, non_3d_mode, low_bandwidth_mode,
+                reduced_motion_mode, background_audio_enabled,
+                research_participation_status, updated_at
+            ) VALUES (?, 'transition_to_clinical_learning', 0, 0, 0, 1, 'not_answered', ?)
+            """,
+            (user_id, now),
         )
     return get_user_by_id(conn, user_id)
 
@@ -132,6 +151,140 @@ def get_user_by_email(conn: sqlite3.Connection, email: str) -> dict[str, Any] | 
 @with_db_lock
 def get_user_by_id(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
     return row_to_dict(conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone())
+
+
+@with_db_lock
+def get_user_preferences(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
+    return row_to_dict(
+        conn.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,)).fetchone()
+    )
+
+
+@with_db_lock
+def upsert_user_preferences(
+    conn: sqlite3.Connection,
+    *,
+    user_id: str,
+    learner_stage: str,
+    non_3d_mode: bool,
+    low_bandwidth_mode: bool,
+    reduced_motion_mode: bool,
+    background_audio_enabled: bool,
+    educational_notice_acknowledged_at: str | None,
+    research_participation_status: str,
+    research_consent_version: str | None,
+    research_consented_at: str | None,
+    research_withdrawn_at: str | None,
+    deidentified_research_id: str | None,
+) -> dict[str, Any]:
+    now = utc_now_iso()
+    with transaction(conn, immediate=True):
+        conn.execute(
+            """
+            INSERT INTO user_preferences (
+                user_id, learner_stage, non_3d_mode, low_bandwidth_mode,
+                reduced_motion_mode, background_audio_enabled,
+                educational_notice_acknowledged_at, research_participation_status,
+                research_consent_version, research_consented_at,
+                research_withdrawn_at, deidentified_research_id, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                learner_stage = excluded.learner_stage,
+                non_3d_mode = excluded.non_3d_mode,
+                low_bandwidth_mode = excluded.low_bandwidth_mode,
+                reduced_motion_mode = excluded.reduced_motion_mode,
+                background_audio_enabled = excluded.background_audio_enabled,
+                educational_notice_acknowledged_at = excluded.educational_notice_acknowledged_at,
+                research_participation_status = excluded.research_participation_status,
+                research_consent_version = excluded.research_consent_version,
+                research_consented_at = excluded.research_consented_at,
+                research_withdrawn_at = excluded.research_withdrawn_at,
+                deidentified_research_id = excluded.deidentified_research_id,
+                updated_at = excluded.updated_at
+            """,
+            (
+                user_id,
+                learner_stage,
+                1 if non_3d_mode else 0,
+                1 if low_bandwidth_mode else 0,
+                1 if reduced_motion_mode else 0,
+                1 if background_audio_enabled else 0,
+                educational_notice_acknowledged_at,
+                research_participation_status,
+                research_consent_version,
+                research_consented_at,
+                research_withdrawn_at,
+                deidentified_research_id,
+                now,
+            ),
+        )
+    return get_user_preferences(conn, user_id) or {}
+
+
+def build_deidentified_research_id(user_id: str) -> str:
+    digest = sha256(user_id.encode("utf-8")).hexdigest()[:16]
+    return f"research-{digest}"
+
+
+@with_db_lock
+def create_research_consent_event(
+    conn: sqlite3.Connection,
+    *,
+    user_id: str,
+    learner_stage: str,
+    educational_notice_acknowledged_at: str | None,
+    research_participation_status: str,
+    research_consent_version: str | None,
+    research_consented_at: str | None,
+    research_withdrawn_at: str | None,
+    deidentified_research_id: str | None,
+    metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    event_id = f"consent-{uuid.uuid4()}"
+    created_at = utc_now_iso()
+    with transaction(conn, immediate=True):
+        conn.execute(
+            """
+            INSERT INTO research_consent_events (
+                id, user_id, learner_stage, educational_notice_acknowledged_at,
+                research_participation_status, research_consent_version, research_consented_at,
+                research_withdrawn_at, deidentified_research_id, created_at, metadata_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                user_id,
+                learner_stage,
+                educational_notice_acknowledged_at,
+                research_participation_status,
+                research_consent_version,
+                research_consented_at,
+                research_withdrawn_at,
+                deidentified_research_id,
+                created_at,
+                json_dumps(metadata or {}),
+            ),
+        )
+    return row_to_dict(conn.execute("SELECT * FROM research_consent_events WHERE id = ?", (event_id,)).fetchone()) or {}
+
+
+@with_db_lock
+def list_research_consent_events(conn: sqlite3.Connection, user_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM research_consent_events
+        WHERE user_id = ?
+        ORDER BY created_at DESC, rowid DESC
+        """,
+        (user_id,),
+    ).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        item = row_to_dict(row) or {}
+        item["metadata"] = json_loads(item.pop("metadata_json", "{}")) or {}
+        items.append(item)
+    return items
 
 
 @with_db_lock
@@ -257,6 +410,7 @@ def get_session_with_user(conn: sqlite3.Connection, raw_session_token: str) -> d
             u.id AS user_id,
             u.email,
             u.display_name,
+            u.role,
             u.status,
             u.created_at,
             u.updated_at,
@@ -613,6 +767,387 @@ def list_attempts_for_user(conn: sqlite3.Connection, user_id: str) -> list[dict[
 
 
 @with_db_lock
+def list_attempts_for_reviewer(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT
+            e.*,
+            a.engine AS assessment_engine_value,
+            a.status AS assessment_status,
+            a.evaluation_json,
+            u.display_name AS learner_display_name,
+            u.email AS learner_email,
+            u.role AS learner_role
+        FROM encounters e
+        LEFT JOIN assessments a ON a.encounter_id = e.id
+        JOIN users u ON u.id = e.user_id
+        ORDER BY COALESCE(e.completed_at, e.last_activity_at) DESC
+        """
+    ).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        item = row_to_dict(row) or {}
+        item["draft_snapshot"] = json_loads(item.pop("draft_snapshot_json", None))
+        item["completion_snapshot"] = json_loads(item.pop("completion_snapshot_json", None))
+        item["evaluation"] = json_loads(item.pop("evaluation_json", None))
+        items.append(item)
+    return items
+
+
+@with_db_lock
+def create_attempt_review(
+    conn: sqlite3.Connection,
+    *,
+    encounter_id: str,
+    learner_user_id: str,
+    reviewer_user_id: str,
+    reviewer_role: str,
+    educator_comment: str,
+    agreement_label: str,
+    safety_concern_level: str,
+    reviewed_status: str,
+) -> dict[str, Any]:
+    now = utc_now_iso()
+    review_id = f"atrev-{uuid.uuid4()}"
+    with transaction(conn, immediate=True):
+        conn.execute(
+            """
+            INSERT INTO attempt_reviews (
+                id, encounter_id, learner_user_id, reviewer_user_id, reviewer_role,
+                educator_comment, agreement_label, safety_concern_level, reviewed_status,
+                created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                encounter_id,
+                learner_user_id,
+                reviewer_user_id,
+                reviewer_role,
+                educator_comment,
+                agreement_label,
+                safety_concern_level,
+                reviewed_status,
+                now,
+                now,
+            ),
+        )
+    return get_latest_attempt_review(conn, encounter_id) or {}
+
+
+@with_db_lock
+def get_latest_attempt_review(conn: sqlite3.Connection, encounter_id: str) -> dict[str, Any] | None:
+    return row_to_dict(
+        conn.execute(
+            """
+            SELECT ar.*, reviewer.display_name AS reviewer_display_name
+            FROM attempt_reviews ar
+            JOIN users reviewer ON reviewer.id = ar.reviewer_user_id
+            WHERE ar.encounter_id = ?
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+            """,
+            (encounter_id,),
+        ).fetchone()
+    )
+
+
+@with_db_lock
+def list_attempt_reviews_for_learner(conn: sqlite3.Connection, learner_user_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT ar.*, reviewer.display_name AS reviewer_display_name
+        FROM attempt_reviews ar
+        JOIN users reviewer ON reviewer.id = ar.reviewer_user_id
+        WHERE ar.learner_user_id = ?
+        ORDER BY ar.created_at DESC
+        """,
+        (learner_user_id,),
+    ).fetchall()
+    return [row_to_dict(row) or {} for row in rows]
+
+
+@with_db_lock
+def create_case_review_record(
+    conn: sqlite3.Connection,
+    *,
+    case_id: str,
+    case_version: str,
+    review_type: str,
+    decision: str,
+    reviewer_user_id: str,
+    reviewer_role: str,
+    comments: str,
+    mapping_version: str | None,
+    institution_profile_version: str | None,
+    source_registry_version: str | None,
+    diagnosis_definition_version: str | None,
+    management_content_version: str | None,
+    patient_safety_rule_version: str | None,
+    review_scope: dict[str, Any] | None,
+    fixture_label: str | None,
+    next_review_date: str | None,
+) -> dict[str, Any]:
+    review_id = f"caserev-{uuid.uuid4()}"
+    reviewed_at = utc_now_iso()
+    with transaction(conn, immediate=True):
+        conn.execute(
+            """
+            INSERT INTO case_review_records (
+                id, case_id, case_version, review_type, decision,
+                reviewer_user_id, reviewer_role, comments, mapping_version,
+                institution_profile_version, source_registry_version,
+                diagnosis_definition_version, management_content_version,
+                patient_safety_rule_version, review_scope_json, fixture_label,
+                reviewed_at, next_review_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                review_id,
+                case_id,
+                case_version,
+                review_type,
+                decision,
+                reviewer_user_id,
+                reviewer_role,
+                comments,
+                mapping_version,
+                institution_profile_version,
+                source_registry_version,
+                diagnosis_definition_version,
+                management_content_version,
+                patient_safety_rule_version,
+                json_dumps(review_scope or {}),
+                fixture_label,
+                reviewed_at,
+                next_review_date,
+            ),
+        )
+    return get_latest_case_review(conn, case_id, review_type) or {}
+
+
+@with_db_lock
+def get_latest_case_review(conn: sqlite3.Connection, case_id: str, review_type: str) -> dict[str, Any] | None:
+    item = row_to_dict(
+        conn.execute(
+            """
+            SELECT crr.*, reviewer.display_name AS reviewer_display_name
+            FROM case_review_records crr
+            JOIN users reviewer ON reviewer.id = crr.reviewer_user_id
+            WHERE crr.case_id = ? AND crr.review_type = ?
+            ORDER BY crr.reviewed_at DESC
+            LIMIT 1
+            """,
+            (case_id, review_type),
+        ).fetchone()
+    )
+    if item:
+        item["review_scope"] = json_loads(item.pop("review_scope_json", "{}")) or {}
+    return item
+
+
+@with_db_lock
+def list_case_review_records(conn: sqlite3.Connection, case_id: str | None = None) -> list[dict[str, Any]]:
+    sql = """
+        SELECT crr.*, reviewer.display_name AS reviewer_display_name
+        FROM case_review_records crr
+        JOIN users reviewer ON reviewer.id = crr.reviewer_user_id
+    """
+    params: list[Any] = []
+    if case_id:
+        sql += " WHERE crr.case_id = ?"
+        params.append(case_id)
+    sql += " ORDER BY crr.reviewed_at DESC"
+    rows = conn.execute(sql, tuple(params)).fetchall()
+    items: list[dict[str, Any]] = []
+    for row in rows:
+        item = row_to_dict(row) or {}
+        item["review_scope"] = json_loads(item.pop("review_scope_json", "{}")) or {}
+        items.append(item)
+    return items
+
+
+@with_db_lock
+def create_educator_attempt_score(
+    conn: sqlite3.Connection,
+    *,
+    encounter_id: str,
+    learner_user_id: str,
+    reviewer_user_id: str,
+    reviewer_role: str,
+    rubric_version: str,
+    review_mode: str,
+    overall_score: float | None,
+    overall_category: str,
+    domain_scores: dict[str, Any],
+    safety_findings: list[str],
+    missed_history_concepts: list[str],
+    investigation_evaluation: str,
+    diagnosis_evaluation: str,
+    communication_evaluation: str,
+    educator_comment: str,
+    confidence_label: str,
+    review_minutes: int,
+    submit_status: str,
+    amended_from_score_id: str | None,
+) -> dict[str, Any]:
+    score_id = f"edscore-{uuid.uuid4()}"
+    created_at = utc_now_iso()
+    with transaction(conn, immediate=True):
+        conn.execute(
+            """
+            INSERT INTO educator_attempt_scores (
+                id, encounter_id, learner_user_id, reviewer_user_id, reviewer_role,
+                rubric_version, review_mode, overall_score, overall_category,
+                domain_scores_json, safety_findings_json, missed_history_json,
+                investigation_evaluation, diagnosis_evaluation, communication_evaluation,
+                educator_comment, confidence_label, review_minutes, submit_status,
+                created_at, amended_from_score_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                score_id,
+                encounter_id,
+                learner_user_id,
+                reviewer_user_id,
+                reviewer_role,
+                rubric_version,
+                review_mode,
+                overall_score,
+                overall_category,
+                json_dumps(domain_scores),
+                json_dumps(safety_findings),
+                json_dumps(missed_history_concepts),
+                investigation_evaluation,
+                diagnosis_evaluation,
+                communication_evaluation,
+                educator_comment,
+                confidence_label,
+                review_minutes,
+                submit_status,
+                created_at,
+                amended_from_score_id,
+            ),
+        )
+    return get_educator_attempt_score(conn, score_id) or {}
+
+
+def _hydrate_educator_score(row: sqlite3.Row | None) -> dict[str, Any] | None:
+    item = row_to_dict(row)
+    if not item:
+        return None
+    item["domain_scores"] = json_loads(item.pop("domain_scores_json", "{}")) or {}
+    item["safety_findings"] = json_loads(item.pop("safety_findings_json", "[]")) or []
+    item["missed_history_concepts"] = json_loads(item.pop("missed_history_json", "[]")) or []
+    return item
+
+
+@with_db_lock
+def get_educator_attempt_score(conn: sqlite3.Connection, score_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT eas.*, reviewer.display_name AS reviewer_display_name
+        FROM educator_attempt_scores eas
+        JOIN users reviewer ON reviewer.id = eas.reviewer_user_id
+        WHERE eas.id = ?
+        """,
+        (score_id,),
+    ).fetchone()
+    return _hydrate_educator_score(row)
+
+
+@with_db_lock
+def list_educator_attempt_scores(conn: sqlite3.Connection, encounter_id: str) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT eas.*, reviewer.display_name AS reviewer_display_name
+        FROM educator_attempt_scores eas
+        JOIN users reviewer ON reviewer.id = eas.reviewer_user_id
+        WHERE eas.encounter_id = ?
+        ORDER BY eas.created_at DESC
+        """,
+        (encounter_id,),
+    ).fetchall()
+    return [item for item in (_hydrate_educator_score(row) for row in rows) if item]
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+@with_db_lock
+def compute_agreement_metrics(conn: sqlite3.Connection) -> dict[str, Any]:
+    attempt_rows = conn.execute(
+        """
+        SELECT ar.encounter_id, ar.agreement_label, ar.safety_concern_level, a.evaluation_json
+        FROM attempt_reviews ar
+        LEFT JOIN assessments a ON a.encounter_id = ar.encounter_id
+        ORDER BY ar.created_at DESC
+        """
+    ).fetchall()
+    score_rows = conn.execute(
+        """
+        SELECT encounter_id, overall_score, overall_category, domain_scores_json, safety_findings_json
+        FROM educator_attempt_scores
+        WHERE submit_status = 'submitted'
+        ORDER BY created_at DESC
+        """
+    ).fetchall()
+    by_encounter_review = {str(row["encounter_id"]): row for row in attempt_rows}
+    exact_agreement = 0
+    compared = 0
+    differences: list[float] = []
+    domain_pairs = 0
+    domain_matches = 0
+    safety_confusion: dict[str, int] = {}
+    for row in score_rows:
+        encounter_id = str(row["encounter_id"])
+        review_row = by_encounter_review.get(encounter_id)
+        assessment_row = conn.execute("SELECT evaluation_json FROM assessments WHERE encounter_id = ?", (encounter_id,)).fetchone()
+        assessment = json_loads(assessment_row["evaluation_json"]) if assessment_row and assessment_row["evaluation_json"] else {}
+        if not review_row or not assessment:
+            continue
+        compared += 1
+        automated_category = str(assessment.get("global_rating") or "unknown")
+        educator_category = str(row["overall_category"] or "unknown")
+        if educator_category == automated_category:
+            exact_agreement += 1
+        automated_score = _safe_float(assessment.get("score"))
+        educator_score = _safe_float(row["overall_score"])
+        if automated_score is not None and educator_score is not None:
+            differences.append(abs(educator_score - automated_score))
+        educator_domains = json_loads(row["domain_scores_json"]) or {}
+        automated_domains = assessment.get("domain_scores") or {}
+        for domain, educator_domain in educator_domains.items():
+            educator_value = educator_domain.get("verdict") if isinstance(educator_domain, dict) else educator_domain
+            automated_value = automated_domains.get(domain, {}).get("verdict") if isinstance(automated_domains.get(domain), dict) else automated_domains.get(domain)
+            if automated_value is None:
+                continue
+            domain_pairs += 1
+            if educator_value == automated_value:
+                domain_matches += 1
+        educator_safety = "flagged" if (json_loads(row["safety_findings_json"]) or []) else "clear"
+        automated_safety = "flagged" if assessment.get("safety_breach") else "clear"
+        safety_confusion[f"{automated_safety}->{educator_safety}"] = safety_confusion.get(f"{automated_safety}->{educator_safety}", 0) + 1
+    sample_size = compared
+    return {
+        "sample_size": sample_size,
+        "small_sample_warning": sample_size < 8,
+        "exact_agreement_rate": round(exact_agreement / sample_size, 3) if sample_size else None,
+        "mean_absolute_score_difference": round(sum(differences) / len(differences), 3) if differences else None,
+        "domain_level_agreement_rate": round(domain_matches / domain_pairs, 3) if domain_pairs else None,
+        "safety_confusion_matrix": safety_confusion,
+        "limitations": [
+            "Correlation is not treated as agreement.",
+            "Fixture or small-sample data does not establish educational validity.",
+        ],
+    }
+
+
+@with_db_lock
 def export_user_data(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
     user = get_user_by_id(conn, user_id)
     attempts = list_attempts_for_user(conn, user_id)
@@ -631,6 +1166,104 @@ def export_user_data(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
         "profile": profile,
         "encounters": attempts,
         "progress": compute_progress(attempts),
+    }
+
+
+@with_db_lock
+def export_pilot_research_data(
+    conn: sqlite3.Connection,
+    *,
+    pilot_id: str,
+    consent_version: str | None = None,
+) -> dict[str, Any]:
+    rows = conn.execute(
+        """
+        SELECT
+            e.id AS encounter_id,
+            e.case_id,
+            e.case_version,
+            e.completion_snapshot_json,
+            e.status,
+            e.assessment_engine,
+            e.integrity_status,
+            a.evaluation_json,
+            u.id AS user_id,
+            up.learner_stage,
+            up.research_participation_status,
+            up.research_consent_version,
+            up.research_consented_at,
+            up.research_withdrawn_at,
+            up.deidentified_research_id
+        FROM encounters e
+        JOIN users u ON u.id = e.user_id
+        JOIN user_preferences up ON up.user_id = u.id
+        LEFT JOIN assessments a ON a.encounter_id = e.id
+        WHERE e.status = 'completed'
+        """
+    ).fetchall()
+    exported_rows: list[dict[str, Any]] = []
+    excluded_declined = 0
+    excluded_withdrawn = 0
+    for row in rows:
+        status = str(row["research_participation_status"] or "not_answered")
+        if status != "consented":
+            excluded_declined += 1
+            continue
+        if row["research_withdrawn_at"]:
+            excluded_withdrawn += 1
+            continue
+        if consent_version and str(row["research_consent_version"] or "") != consent_version:
+            continue
+        assessment = json_loads(row["evaluation_json"]) or {}
+        snapshot = json_loads(row["completion_snapshot_json"]) or {}
+        case_snapshot = snapshot.get("case") or {}
+        encounter_scores = list_educator_attempt_scores(conn, str(row["encounter_id"]))
+        latest_review = get_latest_attempt_review(conn, str(row["encounter_id"]))
+        exported_rows.append(
+            {
+                "research_id": row["deidentified_research_id"],
+                "pilot_id": pilot_id,
+                "encounter_id": row["encounter_id"],
+                "case_id": row["case_id"],
+                "case_version": row["case_version"],
+                "curriculum_mapping_version": ((case_snapshot.get("curriculumAlignment") or {}).get("mappingVersion")),
+                "learner_stage": row["learner_stage"],
+                "consent_version": row["research_consent_version"],
+                "attempt_metrics": {
+                    "integrity_status": row["integrity_status"],
+                    "assessment_engine": row["assessment_engine"],
+                    "completed": row["status"] == "completed",
+                },
+                "assessment_domains": assessment.get("domain_scores") or {},
+                "technical_failure_indicators": {
+                    "ai_fallback": str(row["assessment_engine"] or "") == "rule_based",
+                },
+                "educator_scores": [
+                    {
+                        "rubric_version": item["rubric_version"],
+                        "overall_score": item["overall_score"],
+                        "overall_category": item["overall_category"],
+                        "domain_scores": item["domain_scores"],
+                        "confidence_label": item["confidence_label"],
+                        "submit_status": item["submit_status"],
+                    }
+                    for item in encounter_scores
+                ],
+                "agreement_metrics": {
+                    "agreement_label": latest_review.get("agreement_label") if latest_review else None,
+                    "safety_concern_level": latest_review.get("safety_concern_level") if latest_review else None,
+                },
+            }
+        )
+    return {
+        "exported_at": utc_now_iso(),
+        "pilot_id": pilot_id,
+        "consent_version_filter": consent_version,
+        "deidentification_status": "pseudonymised",
+        "warning": "Small sample - interpret cautiously." if len(exported_rows) < 8 else None,
+        "excluded_declined_or_unanswered": excluded_declined,
+        "excluded_withdrawn": excluded_withdrawn,
+        "rows": exported_rows,
     }
 
 

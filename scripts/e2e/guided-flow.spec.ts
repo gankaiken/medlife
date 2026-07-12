@@ -9,6 +9,12 @@ const headacheEvaluation = JSON.parse(
 );
 const headacheCaseVersion = '1.0.0';
 
+function throwIfForcedFailure(marker: string) {
+  if (process.env.MEDLIFE_E2E_FORCE_FAILURE === marker) {
+    throw new Error(`Deliberate mocked-suite failure triggered for cleanup verification: ${marker}`);
+  }
+}
+
 function buildReceiptDigest(base: Record<string, any>) {
   const source = [
     base.receiptId,
@@ -78,6 +84,10 @@ function runtimeCapabilities(overrides: Record<string, unknown> = {}) {
 }
 
 async function completeSplashAndOnboarding(page: Page) {
+  await expect.poll(async () => {
+    const response = await page.request.get('/');
+    return response.status();
+  }).toBe(200);
   await page.goto('/');
   await page.getByTestId('enter-training-floor').click({ force: true });
   await page.getByTestId('onboarding-next').click();
@@ -104,6 +114,23 @@ async function installCapabilitiesRoutes(page: Page, overrides: Record<string, u
   });
   await page.route('**/agent/capabilities', async (route) => {
     await route.fulfill({ json: runtimeCapabilities(overrides) });
+  });
+}
+
+async function installOfflineRoutes(page: Page) {
+  await page.route('**/health', async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify({ detail: 'offline for deterministic e2e' }),
+    });
+  });
+  await page.route('**/agent/capabilities', async (route) => {
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify({ detail: 'offline for deterministic e2e' }),
+    });
   });
 }
 
@@ -235,8 +262,10 @@ test('full guided browser journey saves, reopens, and survives reload with rule-
 });
 
 test('backend unavailable still supports guided completion and local rule-based saving', async ({ page }) => {
+  await installOfflineRoutes(page);
   await reachEncounter(page);
 
+  await expect(page.getByTestId('sync-status')).toContainText(/Local session/i);
   await expect(page.getByText(/Offline\/demo fallback mode/i)).toBeVisible({ timeout: 15000 });
   await page.getByTestId('open-examination').click();
   await page.getByTestId('history-question-ha-onset').click();
@@ -257,6 +286,7 @@ test('backend unavailable still supports guided completion and local rule-based 
 
   await page.getByTitle('Open profile').click();
   await expect(page.getByTestId('recent-attempts')).toContainText('Aisha Rahman');
+  throwIfForcedFailure('mocked-offline');
 });
 
 test('debrief failure keeps retry available without duplicating saved attempts, and corrupted history recovers safely', async ({ page }) => {

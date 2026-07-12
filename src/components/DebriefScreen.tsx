@@ -11,6 +11,7 @@ import { saveEvalHistory, getEvalHistory, type EvalHistoryEntry } from '../data/
 import { POLYCLINIC_DIAGNOSIS_LABELS } from '../data/polyclinicPatients';
 import { buildRuleBasedDebrief } from '../agents/ruleBasedDebrief';
 import { validateDisclosureReceiptAgainstContext } from '../agents/disclosureReceipts.ts';
+import { listPilotAttemptReviews, type PilotReview } from '../agents/accountApi';
 import type {
   CaseEvaluationInput,
   CriterionResult,
@@ -493,6 +494,7 @@ export function DebriefScreen() {
   const { session } = useAuth();
   const { persistAssessment } = useEncounterSync();
   const [retryKey, setRetryKey] = useState(0);
+  const [attemptReviews, setAttemptReviews] = useState<PilotReview[]>([]);
 
   // Review-mode: when viewedEvalHistoryId is set, render a saved evaluation
   // from localStorage instead of running the agent against a fresh request.
@@ -578,6 +580,17 @@ export function DebriefScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const encounterId = patient?.encounterId;
+    if (!encounterId || !session?.authenticated) {
+      setAttemptReviews([]);
+      return;
+    }
+    void listPilotAttemptReviews(encounterId)
+      .then(setAttemptReviews)
+      .catch(() => setAttemptReviews([]));
+  }, [patient?.encounterId, session?.authenticated]);
+
   return (
     <div className="screen paper" style={{ overflowY: 'auto' }}>
       <TopBar here={5} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter', 'Debrief']} />
@@ -602,6 +615,7 @@ export function DebriefScreen() {
               c={c}
               engineLabel="Rule-based assessment"
               integrityStatus={reviewed?.integrityStatus}
+              attemptReviews={attemptReviews}
             />
           </>
         ) : status === 'starting' || status === 'idle' ? (
@@ -633,6 +647,7 @@ export function DebriefScreen() {
               c={c}
               engineLabel={engine === 'ai' ? 'AI debrief' : engine === 'rule_based' ? 'Rule-based assessment' : 'Saved review'}
               integrityStatus={reviewed?.integrityStatus}
+              attemptReviews={attemptReviews}
             />
           </>
         ) : (
@@ -704,9 +719,10 @@ interface BodyProps {
   c: PatientCase;
   engineLabel: string;
   integrityStatus?: EvalHistoryEntry['integrityStatus'];
+  attemptReviews: PilotReview[];
 }
 
-function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus }: BodyProps) {
+function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, attemptReviews }: BodyProps) {
   const verdict = evaluation.global_rating;
   const dgItems = evaluation.criteria.filter((x) => x.domain === 'data_gathering');
   const cmItems = evaluation.criteria.filter((x) => x.domain === 'clinical_management');
@@ -881,6 +897,79 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus }
       <div className="plush" style={{ padding: 16, marginBottom: 22 }}>
         <SectionLabel>ACTIONS YOU TOOK</SectionLabel>
         <ActionChips patient={patient} c={c} />
+      </div>
+
+      <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="learner-reflection-panel">
+        <SectionLabel>Learner Reflection</SectionLabel>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {[
+            ['whatWentWell', 'What went well?'],
+            ['missedInformation', 'What was the most important information you missed?'],
+            ['whatDoDifferently', 'What would you do differently next time?'],
+            ['weakestReasoningPart', 'Which part of your reasoning was weakest?'],
+            ['nextPracticeFocus', 'What will you practise next?'],
+          ].map(([field, label]) => (
+            <label key={field} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 900, color: 'var(--ink-2)' }}>{label}</span>
+              <textarea
+                rows={field === 'nextPracticeFocus' ? 3 : 4}
+                value={patient.learnerReflection?.[field as keyof NonNullable<ActivePatient['learnerReflection']>] ?? ''}
+                onChange={(event) => {
+                  store.updateLearnerReflection({
+                    [field]: event.target.value,
+                  } as Partial<NonNullable<ActivePatient['learnerReflection']>>);
+                }}
+                style={{
+                  border: '3px solid var(--line)',
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  resize: 'vertical',
+                  background: 'white',
+                }}
+              />
+            </label>
+          ))}
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 10 }}>
+          Reflection stays learner-authored and is kept separate from automated feedback.
+        </div>
+      </div>
+
+      <div className="plush" style={{ padding: 16, marginBottom: 22 }}>
+        <SectionLabel>Learning Design and Review</SectionLabel>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {c.assessmentBlueprint.formativeLabels.map((label) => (
+            <span key={label} className="chip butter">{label}</span>
+          ))}
+          <span className="chip">{attemptReviews.length > 0 ? 'Educator reviewed' : 'Not educator reviewed'}</span>
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+          Intended outcomes: {c.curriculumAlignment.learningOutcomes.join(' ')}
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55, marginTop: 8 }}>
+          Suggested next work: {c.learningDesign.debrief.suggestedResources.join(' · ')}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+          {attemptReviews.map((review) => (
+            <div key={String(review.id)} style={{ background: 'white', border: '2.5px solid var(--line)', borderRadius: 12, padding: 10 }}>
+              <div style={{ fontWeight: 900 }}>{String(review.reviewer_display_name ?? review.reviewer_role ?? 'Reviewer')}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 2 }}>
+                {String(review.reviewed_status ?? 'review logged')} · {String(review.agreement_label ?? 'n/a')} · {String(review.safety_concern_level ?? 'none')}
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginTop: 6, whiteSpace: 'pre-wrap' }}>
+                {String(review.educator_comment ?? '')}
+              </div>
+            </div>
+          ))}
+          {attemptReviews.length === 0 && (
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink-2)' }}>
+              No educator review has been recorded for this attempt yet.
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="evidence-inspector">

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://medlife.local/shared/curriculum/curriculum_schema.json",
+  "title": "Medlife Curriculum Mapping",
+  "type": "object",
+  "required": [
+    "institution_profile_id",
+    "program_name",
+    "program_version",
+    "source_id",
+    "source_type",
+    "public_or_internal_source",
+    "course_year",
+    "stage_of_training",
+    "competency_domain",
+    "evidence_type",
+    "related_case_ids",
+    "mapping_rationale",
+    "approval_status",
+    "confidence_level",
+    "internal_document_required"
+  ],
+  "properties": {
+    "institution_profile_id": { "type": "string", "minLength": 1 },
+    "program_name": { "type": "string", "minLength": 1 },
+    "program_version": { "type": "string", "minLength": 1 },
+    "campus_or_delivery_location": { "type": "string" },
+    "source_id": { "type": "string", "minLength": 1 },
+    "source_date": { "type": "string" },
+    "source_version": { "type": "string" },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "official_public_source",
+        "official_internal_source",
+        "regulatory_source",
+        "academic_interpretation",
+        "unverified_assumption"
+      ]
+    },
+    "public_or_internal_source": {
+      "type": "string",
+      "enum": ["public", "internal"]
+    },
+    "course_year": { "type": ["integer", "string"] },
+    "stage_of_training": { "type": "string", "minLength": 1 },
+    "discipline": { "type": "string" },
+    "rotation": { "type": "string" },
+    "theme": { "type": "string" },
+    "competency_domain": { "type": "string", "minLength": 1 },
+    "learning_outcome": { "type": "string" },
+    "clinical_problem": { "type": "string" },
+    "clinical_skill": { "type": "string" },
+    "expected_performance_level": { "type": "string" },
+    "teaching_method": { "type": "string" },
+    "assessment_method": { "type": "string" },
+    "evidence_type": { "type": "string", "minLength": 1 },
+    "related_case_ids": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1
+    },
+    "mapping_rationale": { "type": "string", "minLength": 1 },
+    "reviewer": { "type": ["string", "null"] },
+    "review_date": { "type": ["string", "null"] },
+    "approval_status": {
+      "type": "string",
+      "enum": [
+        "not_mapped",
+        "candidate_public_source_mapping",
+        "internal_document_required",
+        "academic_review_required",
+        "academically_reviewed",
+        "curriculum_approved"
+      ]
+    },
+    "confidence_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "internal_document_required": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

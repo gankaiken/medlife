@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { resolve } from 'node:path';
+import { startManagedStaticServer } from './server-lifecycle.mjs';
 
 function isPortOpen(port) {
   return new Promise((resolve) => {
@@ -63,7 +64,14 @@ function runNodeProcess(args) {
 async function main() {
   const rawArgs = process.argv.slice(2);
   const shouldBuild = rawArgs.includes('--with-build');
-  const args = rawArgs.filter((arg) => arg !== '--with-build');
+  const forceFailureIndex = rawArgs.indexOf('--force-failure');
+  const forcedFailureMarker =
+    forceFailureIndex >= 0 && forceFailureIndex + 1 < rawArgs.length ? rawArgs[forceFailureIndex + 1] : null;
+  const args = rawArgs.filter((arg, index) => {
+    if (arg === '--with-build') return false;
+    if (forceFailureIndex >= 0 && (index === forceFailureIndex || index === forceFailureIndex + 1)) return false;
+    return true;
+  });
 
   const forwardSignal = (signal) => {
     if (activeChild && !activeChild.killed) {
@@ -89,18 +97,44 @@ async function main() {
     if (viteExit !== 0) process.exit(viteExit);
   }
 
-  const exitCode = await runNodeProcess([
-    resolve('node_modules/@playwright/test/cli.js'),
-    'test',
-    ...args,
-  ]);
+  const frontend = await startManagedStaticServer({ label: 'mocked-suite', port: 4173, rootDir: 'dist' });
+  let exitCode = 1;
+  try {
+    await frontend.assertHealthy('before-playwright');
+    exitCode = await new Promise((resolveExit, reject) => {
+      const child = spawn(process.execPath, [
+        resolve('node_modules/@playwright/test/cli.js'),
+        'test',
+        ...args,
+      ], {
+        cwd: process.cwd(),
+        stdio: 'inherit',
+        shell: false,
+        env: {
+          ...process.env,
+          ...(forcedFailureMarker ? { MEDLIFE_E2E_FORCE_FAILURE: forcedFailureMarker } : {}),
+        },
+      });
+      activeChild = child;
+      frontend.bindPlaywrightChild(child);
+      child.once('error', reject);
+      child.once('exit', (code, signal) => {
+        if (activeChild === child) {
+          activeChild = null;
+        }
+        resolveExit(normalizeExitCode(code, signal));
+      });
+    });
+    await frontend.assertHealthy('after-playwright');
+  } finally {
+    await frontend.stop({ preserveLogsOnFailure: false, successful: exitCode === 0 });
+  }
 
   const portReleased = await waitForPortReleased(4173, 5000);
   if (!portReleased) {
-    process.stderr.write('[e2e] Port 4173 was not released after Playwright exited.\n');
+    process.stderr.write('[e2e] Port 4173 was not released after runner cleanup.\n');
     process.exit(1);
   }
-
   process.exit(exitCode);
 }
 

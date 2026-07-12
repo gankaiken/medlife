@@ -1,0 +1,103 @@
+{
+  "profile_id": "monash-medicine-candidate-malaysia",
+  "institution_name": "Monash University Malaysia",
+  "program_name": "Bachelor of Medical Science and Doctor of Medicine",
+  "program_version": "candidate-public-source-2026-07",
+  "campus_or_delivery_location": "Malaysia",
+  "mapping_status": "candidate_public_source_mapping",
+  "official_alignment_note": "This profile is a candidate public-source mapping only. It is not official curriculum approval.",
+  "stages": [
+    {
+      "year": 1,
+      "status": "candidate_public_source_mapping",
+      "summary": [
+        "Basic medical sciences",
+        "Behavioural sciences",
+        "Clinical issues introduced through problem-based cases",
+        "Early clinical exposure"
+      ]
+    },
+    {
+      "year": 2,
+      "status": "candidate_public_source_mapping",
+      "summary": [
+        "Continued medical and behavioural sciences",
+        "Community-oriented experience",
+        "Hospital and clinic exposure",
+        "Preparation for clinical learning"
+      ]
+    },
+    {
+      "year": 3,
+      "status": "candidate_public_source_mapping",
+      "summary": [
+        "Integrated medicine and surgery",
+        "Problem-based learning",
+        "Bedside and clinical teaching",
+        "Research methods"
+      ]
+    },
+    {
+      "year": 4,
+      "status": "candidate_public_source_mapping",
+      "summary": [
+        "Women's health",
+        "Children's health",
+        "General practice",
+        "Psychological medicine"
+      ]
+    },
+    {
+      "year": 5,
+      "status": "candidate_public_source_mapping",
+      "summary": [
+        "Pre-intern clinical preparation",
+        "Wider clinical experience",
+        "Patient safety",
+        "Transition to professional practice",
+        "Scholarly or research activity where relevant"
+      ]
+    }
+  ],
+  "cross_cutting_priorities": [
+    "Critical thinking",
+    "Clinical reasoning",
+    "Communication",
+    "Patient safety",
+    "Research competence",
+    "Professionalism",
+    "Reflection",
+    "Community orientation",
+    "Ethical practice"
+  ],
+  "theme_placeholders": [
+    {
+      "id": "public-theme-1",
+      "label": "Unnamed public curriculum theme 1",
+      "status": "internal_document_required"
+    },
+    {
+      "id": "public-theme-2",
+      "label": "Unnamed public curriculum theme 2",
+      "status": "internal_document_required"
+    },
+    {
+      "id": "public-theme-3",
+      "label": "Unnamed public curriculum theme 3",
+      "status": "internal_document_required"
+    },
+    {
+      "id": "public-theme-4",
+      "label": "Unnamed public curriculum theme 4",
+      "status": "internal_document_required"
+    }
+  ],
+  "internal_import_placeholders": {
+    "official_theme_names": "internal_document_required",
+    "unit_level_outcomes": "internal_document_required",
+    "rotation_specific_outcomes": "internal_document_required",
+    "assessment_blueprints": "internal_document_required",
+    "official_competency_expectations": "internal_document_required",
+    "internal_rubrics": "internal_document_required"
+  }
+}

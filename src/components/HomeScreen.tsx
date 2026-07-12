@@ -164,7 +164,22 @@ const authInputStyle: React.CSSProperties = {
 export function HomeScreen() {
   const tweaks = useTweaks();
   const { capabilities, backendReachable } = useRuntime();
-  const { session, serverAttempts, progress, login, register, logout, exportData, migrateLocalHistory, migrationAvailable, loading: authLoading, sessionNotice, refresh: refreshAuth } = useAuth();
+  const {
+    session,
+    serverAttempts,
+    progress,
+    preferences,
+    savePreferences,
+    login,
+    register,
+    logout,
+    exportData,
+    migrateLocalHistory,
+    migrationAvailable,
+    loading: authLoading,
+    sessionNotice,
+    refresh: refreshAuth,
+  } = useAuth();
   const { syncState, pendingCount, retrySync, hydrateFromServerAttempt } = useEncounterSync();
   const [history, setHistory] = useState<EvalHistoryEntry[]>([]);
   const [historyHealth, setHistoryHealth] = useState(getEvalHistoryHealth());
@@ -260,6 +275,7 @@ export function HomeScreen() {
               <span className="chip sky">{debriefMode}</span>
               <span className="chip">{backendReachable ? 'Backend reachable' : 'Backend unavailable'}</span>
               <span className="chip">{session?.authenticated ? 'Signed in' : 'Signed out'}</span>
+              {session?.user?.role && <span className="chip butter">{session.user.role.replace(/_/g, ' ')}</span>}
               <span className={`chip ${syncState === 'pending_sync' ? 'peach' : syncState === 'saved' ? 'mint' : 'butter'}`}>
                 {syncState === 'pending_sync' ? `Pending sync ${pendingCount}` : syncState === 'saved' ? 'Server saved' : 'Local cache'}
               </span>
@@ -338,6 +354,11 @@ export function HomeScreen() {
                       Retry sync ({pendingCount})
                     </button>
                   )}
+                  {session.user?.role !== 'learner' && (
+                    <button type="button" className="btn-plush ghost" onClick={() => store.setScreen('educatorWorkspace')} data-testid="open-pilot-workspace">
+                      Open pilot workspace
+                    </button>
+                  )}
                   <button type="button" className="btn-plush ghost" onClick={() => void logout()} data-testid="logout-button">
                     Log out
                   </button>
@@ -352,10 +373,10 @@ export function HomeScreen() {
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: authMode === 'register' ? '1fr 1fr 1fr auto' : '1fr 1fr auto', gap: 8 }}>
                   {authMode === 'register' && (
-                    <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Display name" data-testid="register-display-name" style={authInputStyle} />
+                    <input aria-label="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Display name" data-testid="register-display-name" style={authInputStyle} />
                   )}
-                  <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" data-testid="auth-email" style={authInputStyle} />
-                  <input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" data-testid="auth-password" style={authInputStyle} />
+                  <input aria-label="Email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" data-testid="auth-email" style={authInputStyle} />
+                  <input aria-label="Password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" type="password" data-testid="auth-password" style={authInputStyle} />
                   <button type="button" className="btn-plush primary" onClick={() => void submitAuth()} disabled={authLoading} data-testid={authMode === 'login' ? 'login-button' : 'register-button'}>
                     {authMode === 'login' ? 'Login' : 'Create account'}
                   </button>
@@ -494,6 +515,128 @@ export function HomeScreen() {
             Start a new case
           </button>
 
+          <div className="plush" style={{ padding: 16 }} data-testid="learner-stage-panel">
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 12,
+                color: 'var(--ink-2)',
+                letterSpacing: '.06em',
+                textTransform: 'uppercase',
+                marginBottom: 10,
+              }}
+            >
+              Learning stage and access
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 10 }}>
+              <select
+                value={preferences.learner_stage}
+                data-testid="learner-stage-select"
+                onChange={(event) => {
+                  void savePreferences({
+                    ...preferences,
+                    learner_stage: event.target.value as typeof preferences.learner_stage,
+                    educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at,
+                  });
+                }}
+                style={authInputStyle}
+              >
+                <option value="pre_clinical_foundation">Pre-clinical foundation</option>
+                <option value="transition_to_clinical_learning">Transition to clinical learning</option>
+                <option value="early_clinical">Early clinical</option>
+                <option value="core_clinical_rotation">Core clinical rotation</option>
+                <option value="pre_intern_preparation">Pre-intern preparation</option>
+              </select>
+              <label style={{ ...authInputStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={preferences.non_3d_mode}
+                  data-testid="preference-non-3d"
+                  onChange={(event) => {
+                    void savePreferences({
+                      ...preferences,
+                      non_3d_mode: event.target.checked,
+                      educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
+                    });
+                  }}
+                />
+                Non-3D mode
+              </label>
+              <label style={{ ...authInputStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={preferences.low_bandwidth_mode}
+                  data-testid="preference-low-bandwidth"
+                  onChange={(event) => {
+                    void savePreferences({
+                      ...preferences,
+                      low_bandwidth_mode: event.target.checked,
+                      educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
+                    });
+                  }}
+                />
+                Low-bandwidth mode
+              </label>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10 }}>
+              <label style={{ ...authInputStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={preferences.reduced_motion_mode}
+                  data-testid="preference-reduced-motion"
+                  onChange={(event) => {
+                    void savePreferences({
+                      ...preferences,
+                      reduced_motion_mode: event.target.checked,
+                      educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
+                    });
+                  }}
+                />
+                Reduced motion
+              </label>
+              <label style={{ ...authInputStyle, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  checked={preferences.background_audio_enabled}
+                  data-testid="preference-background-audio"
+                  onChange={(event) => {
+                    void savePreferences({
+                      ...preferences,
+                      background_audio_enabled: event.target.checked,
+                      educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
+                    });
+                  }}
+                />
+                Background audio
+              </label>
+              <select
+                value={preferences.research_participation_status}
+                data-testid="research-participation-select"
+                onChange={(event) => {
+                  void savePreferences({
+                    ...preferences,
+                    research_participation_status: event.target.value as typeof preferences.research_participation_status,
+                    educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
+                  });
+                }}
+                style={authInputStyle}
+              >
+                <option value="not_answered">Research not answered</option>
+                <option value="declined">Decline research use</option>
+                <option value="consented">Consent to research use</option>
+                <option value="withdrawn">Withdraw research consent</option>
+              </select>
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 10, lineHeight: 1.5 }}>
+              Educational access stays available even if research use is declined. AI, rule-based grading, and learner-written reflection remain distinct records.
+            </div>
+            {preferences.low_bandwidth_mode && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 8 }} data-testid="low-bandwidth-honesty-note">
+                low-bandwidth preference - optimisation incomplete
+              </div>
+            )}
+          </div>
+
           {session?.authenticated && inProgress.length > 0 && (
             <div className="plush" style={{ padding: 16 }} data-testid="resume-attempts">
               <div
@@ -619,13 +762,14 @@ export function HomeScreen() {
               >
                 Recent cases
               </div>
-              <span
-                style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', cursor: 'pointer' }}
+              <button
+                type="button"
+                style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', cursor: 'pointer', background: 'transparent', border: 'none', fontFamily: 'inherit' }}
                 onClick={() => store.setScreen('history')}
                 data-testid="open-history"
               >
                 see all →
-              </span>
+              </button>
             </div>
             {history.length === 0 ? (
               <div

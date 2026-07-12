@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {
   exportAccountData,
+  fetchAccountPreferences,
   fetchCurrentSession,
   fetchLearnerProgress,
   listServerEncounters,
@@ -15,11 +16,46 @@ import {
   logoutAccount,
   migrateLocalAttempts,
   registerAccount,
+  updateAccountPreferences,
   type AuthSession,
   type EncounterAttempt,
   type LearnerProgress,
+  type UserPreferences,
 } from '../agents/accountApi';
 import { listEvalHistory } from '../data/evalHistory';
+
+const LOCAL_PREFERENCES_KEY = 'medlife.preferences.v1';
+
+const DEFAULT_PREFERENCES: UserPreferences = {
+  learner_stage: 'transition_to_clinical_learning',
+  non_3d_mode: false,
+  low_bandwidth_mode: false,
+  reduced_motion_mode: false,
+  background_audio_enabled: true,
+  educational_notice_acknowledged_at: null,
+  research_participation_status: 'not_answered',
+  research_consent_version: null,
+  research_consented_at: null,
+  research_withdrawn_at: null,
+  deidentified_research_id: null,
+  updated_at: new Date(0).toISOString(),
+};
+
+function readLocalPreferences(): UserPreferences {
+  if (typeof window === 'undefined') return DEFAULT_PREFERENCES;
+  try {
+    const raw = window.localStorage.getItem(LOCAL_PREFERENCES_KEY);
+    if (!raw) return DEFAULT_PREFERENCES;
+    return { ...DEFAULT_PREFERENCES, ...(JSON.parse(raw) as Partial<UserPreferences>) };
+  } catch {
+    return DEFAULT_PREFERENCES;
+  }
+}
+
+function writeLocalPreferences(next: UserPreferences): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(LOCAL_PREFERENCES_KEY, JSON.stringify(next));
+}
 
 interface AuthContextValue {
   session: AuthSession | null;
@@ -28,7 +64,9 @@ interface AuthContextValue {
   sessionNotice: string | null;
   serverAttempts: EncounterAttempt[];
   progress: LearnerProgress | null;
+  preferences: UserPreferences;
   refresh: () => Promise<void>;
+  savePreferences: (input: Omit<UserPreferences, 'updated_at' | 'research_consent_version' | 'research_consented_at' | 'research_withdrawn_at' | 'deidentified_research_id'>) => Promise<void>;
   login: (input: { email: string; password: string }) => Promise<void>;
   register: (input: { email: string; display_name: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -44,7 +82,9 @@ const AuthContext = createContext<AuthContextValue>({
   sessionNotice: null,
   serverAttempts: [],
   progress: null,
+  preferences: DEFAULT_PREFERENCES,
   refresh: async () => undefined,
+  savePreferences: async () => undefined,
   login: async () => undefined,
   register: async () => undefined,
   logout: async () => undefined,
@@ -55,16 +95,22 @@ const AuthContext = createContext<AuthContextValue>({
 
 async function loadAuthenticatedData(session: AuthSession | null) {
   if (!session?.authenticated) {
-    return { attempts: [], progress: null as LearnerProgress | null };
+    return { attempts: [], progress: null as LearnerProgress | null, preferences: readLocalPreferences() };
   }
-  const [attempts, progress] = await Promise.all([listServerEncounters(), fetchLearnerProgress()]);
-  return { attempts, progress };
+  const [attempts, progress, preferences] = await Promise.all([
+    listServerEncounters(),
+    fetchLearnerProgress(),
+    fetchAccountPreferences(),
+  ]);
+  writeLocalPreferences(preferences);
+  return { attempts, progress, preferences };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [serverAttempts, setServerAttempts] = useState<EncounterAttempt[]>([]);
   const [progress, setProgress] = useState<LearnerProgress | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences>(readLocalPreferences);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
@@ -78,12 +124,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await loadAuthenticatedData(nextSession);
       setServerAttempts(data.attempts);
       setProgress(data.progress);
+      setPreferences(data.preferences);
       setError(null);
       setSessionNotice(wasAuthenticated && !nextSession.authenticated ? 'Your secure session expired. Please sign in again.' : null);
     } catch (err) {
       setSession({ authenticated: false, user: null, session_expires_at: null });
       setServerAttempts([]);
       setProgress(null);
+      setPreferences(readLocalPreferences());
       setError(err instanceof Error ? err.message : String(err));
       setSessionNotice(null);
     } finally {
@@ -103,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await loadAuthenticatedData(nextSession);
       setServerAttempts(data.attempts);
       setProgress(data.progress);
+      setPreferences(data.preferences);
       setError(null);
       setSessionNotice(null);
     } finally {
@@ -118,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await loadAuthenticatedData(nextSession);
       setServerAttempts(data.attempts);
       setProgress(data.progress);
+      setPreferences(data.preferences);
       setError(null);
       setSessionNotice(null);
     } finally {
@@ -132,6 +182,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession({ authenticated: false, user: null, session_expires_at: null });
       setServerAttempts([]);
       setProgress(null);
+      setPreferences(readLocalPreferences());
       setError(null);
       setSessionNotice(null);
     } finally {
@@ -166,6 +217,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const savePreferences = async (
+    input: Omit<UserPreferences, 'updated_at' | 'research_consent_version' | 'research_consented_at' | 'research_withdrawn_at' | 'deidentified_research_id'>,
+  ) => {
+    if (session?.authenticated) {
+      const updated = await updateAccountPreferences({
+        learner_stage: input.learner_stage,
+        non_3d_mode: input.non_3d_mode,
+        low_bandwidth_mode: input.low_bandwidth_mode,
+        reduced_motion_mode: input.reduced_motion_mode,
+        background_audio_enabled: input.background_audio_enabled,
+        educational_notice_acknowledged_at: input.educational_notice_acknowledged_at ?? null,
+        research_participation_status: input.research_participation_status,
+      });
+      writeLocalPreferences(updated);
+      setPreferences(updated);
+      return;
+    }
+    const localNext: UserPreferences = {
+      ...preferences,
+      ...input,
+      updated_at: new Date().toISOString(),
+    };
+    writeLocalPreferences(localNext);
+    setPreferences(localNext);
+  };
+
   const migrationAvailable = useMemo(() => {
     return !!session?.authenticated && listEvalHistory().length > 0;
   }, [session?.authenticated]);
@@ -178,7 +255,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionNotice,
       serverAttempts,
       progress,
+      preferences,
       refresh,
+      savePreferences,
       login,
       register,
       logout,
@@ -186,7 +265,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       migrateLocalHistory,
       migrationAvailable,
     }),
-    [session, loading, error, sessionNotice, serverAttempts, progress, migrationAvailable],
+    [session, loading, error, sessionNotice, serverAttempts, progress, preferences, migrationAvailable],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

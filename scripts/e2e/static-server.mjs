@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, request as httpRequest } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 
@@ -30,6 +30,52 @@ function parseArgs(argv) {
   return { rootDir, port };
 }
 
+function shouldProxyRequest(pathname) {
+  return [
+    '/agent',
+    '/auth',
+    '/cases',
+    '/encounters',
+    '/health',
+    '/pilot',
+    '/progress',
+    '/voice',
+  ].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+async function proxyRequest(req, res, targetBase) {
+  const incomingUrl = new URL(req.url ?? '/', 'http://127.0.0.1');
+  const targetUrl = new URL(incomingUrl.pathname + incomingUrl.search, targetBase);
+  const bodyChunks = [];
+
+  for await (const chunk of req) {
+    bodyChunks.push(chunk);
+  }
+
+  await new Promise((resolveProxy, rejectProxy) => {
+    const proxyReq = httpRequest(
+      targetUrl,
+      {
+        method: req.method,
+        headers: req.headers,
+      },
+      (proxyRes) => {
+        const headers = { ...proxyRes.headers };
+        delete headers['content-length'];
+        res.writeHead(proxyRes.statusCode ?? 502, headers);
+        proxyRes.pipe(res);
+        proxyRes.once('end', resolveProxy);
+      },
+    );
+
+    proxyReq.once('error', rejectProxy);
+    if (bodyChunks.length > 0) {
+      proxyReq.write(Buffer.concat(bodyChunks));
+    }
+    proxyReq.end();
+  });
+}
+
 export async function startStaticServer({
   rootDir,
   port,
@@ -38,12 +84,17 @@ export async function startStaticServer({
   const sockets = new Set();
   const resolvedRootDir = resolve(rootDir ?? 'dist');
   const resolvedPort = Number(port ?? 4173);
+  const proxyTarget = process.env.MEDLIFE_STATIC_PROXY_TARGET?.trim() ?? '';
   let shuttingDown = false;
   let shutdownPromise = null;
 
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+      if (proxyTarget && shouldProxyRequest(url.pathname)) {
+        await proxyRequest(req, res, proxyTarget);
+        return;
+      }
       let filePath = safeJoin(resolvedRootDir, url.pathname === '/' ? 'index.html' : url.pathname.slice(1));
       let payload;
 
@@ -195,7 +246,7 @@ export async function runStaticServerCli(argv = process.argv.slice(2), logger = 
     void shutdownFrom('unhandledRejection', 1);
   });
 
-  if (parentPid && parentPid > 1) {
+  if (process.env.MEDLIFE_DISABLE_PARENT_WATCHDOG !== '1' && parentPid && parentPid > 1) {
     parentWatchdog = setInterval(() => {
       try {
         process.kill(parentPid, 0);

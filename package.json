@@ -11,10 +11,15 @@
     "preview": "node node_modules/vite/bin/vite.js preview",
     "validate:cases": "node scripts/validate-cases.ts",
     "verify:client-boundary": "node scripts/verify/client-boundary.ts",
+    "verify:migration-upgrade": "python -m backend.verify_migration_upgrade",
+    "verify:backup-restore": "python -m backend.verify_backup_restore",
+    "verify:security-config": "python -m backend.verify_security_config",
+    "verify:readiness-failures": "python -m backend.verify_readiness_failures",
     "verify": "node scripts/verify/run-all.ts",
     "test": "node scripts/test/run-all.ts",
     "test:e2e": "node scripts/e2e/run-e2e.mjs --with-build",
     "test:e2e:real": "node scripts/e2e/run-real-backend-e2e.mjs",
+    "test:e2e:pilot-readiness": "node scripts/e2e/run-pilot-readiness-e2e.mjs",
     "test:e2e:headed": "node scripts/e2e/run-e2e.mjs --with-build --headed",
     "test:e2e:debug": "node scripts/e2e/run-e2e.mjs --with-build --debug"
   },
@@ -28,11 +33,13 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@types/three": "^0.170.0",
     "@vitejs/plugin-react": "^4.3.3",
+    "axe-core": "^4.12.1",
     "typescript": "^5.6.3",
     "vite": "^5.4.10"
   }

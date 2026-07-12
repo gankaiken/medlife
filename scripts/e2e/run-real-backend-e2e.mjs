@@ -1,7 +1,8 @@
 import { spawn } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import net from 'node:net';
 import { resolve } from 'node:path';
+import { startManagedStaticServer } from './server-lifecycle.mjs';
 
 const BACKEND_PORT = 8787;
 const FRONTEND_PORT = 4173;
@@ -77,7 +78,14 @@ function spawnBackground(command, args, extraEnv = {}) {
 }
 
 async function main() {
-  const playwrightArgs = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const forceFailureIndex = rawArgs.indexOf('--force-failure');
+  const forcedFailureMarker =
+    forceFailureIndex >= 0 && forceFailureIndex + 1 < rawArgs.length ? rawArgs[forceFailureIndex + 1] : null;
+  const playwrightArgs = rawArgs.filter((arg, index) => {
+    if (forceFailureIndex >= 0 && (index === forceFailureIndex || index === forceFailureIndex + 1)) return false;
+    return true;
+  });
   rmSync(TEMP_DIR, { recursive: true, force: true });
   mkdirSync(TEMP_DIR, { recursive: true });
 
@@ -85,30 +93,24 @@ async function main() {
     MEDLIFE_DB_PATH: DB_PATH,
   };
 
+  if (!existsSync(resolve('dist', 'index.html'))) {
+    process.stderr.write('[real-e2e] dist/index.html is missing. Run `npm run build` before `npm run test:e2e:real`.\n');
+    process.exit(1);
+  }
+
   const migrateExit = await runProcess('python', ['-m', 'backend.manage_db', 'migrate'], env);
   if (migrateExit !== 0) {
     process.exit(migrateExit);
   }
 
-  const tscExit = await runProcess(process.execPath, [
-    resolve('node_modules/typescript/bin/tsc'),
-    '-b',
-    '--pretty',
-    'false',
-  ]);
-  if (tscExit !== 0) {
-    process.exit(tscExit);
-  }
-
-  const buildExit = await runProcess(
-    process.execPath,
-    [resolve('node_modules/vite/bin/vite.js'), 'build'],
-    { VITE_API_BASE_URL: 'http://127.0.0.1:8787' },
-  );
-  if (buildExit !== 0) {
-    process.exit(buildExit);
-  }
-
+  const frontend = await startManagedStaticServer({
+    label: 'real-suite',
+    port: FRONTEND_PORT,
+    rootDir: 'dist',
+    extraEnv: {
+      MEDLIFE_STATIC_PROXY_TARGET: `http://127.0.0.1:${BACKEND_PORT}`,
+    },
+  });
   const backend = spawnBackground(
     'python',
     ['-m', 'uvicorn', 'backend.server:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)],
@@ -125,14 +127,31 @@ async function main() {
 
   try {
     await waitForPortOpen(BACKEND_PORT, 15000);
-    const playwrightExit = await runProcess(process.execPath, [
-      resolve('node_modules/@playwright/test/cli.js'),
-      'test',
-      '--config',
-      resolve('playwright.real.config.ts'),
-      ...playwrightArgs,
-    ]);
+    await frontend.assertHealthy('before-real-playwright');
+    const playwrightExit = await new Promise((resolveExit, reject) => {
+      const child = spawn(process.execPath, [
+        resolve('node_modules/@playwright/test/cli.js'),
+        'test',
+        '--config',
+        resolve('playwright.real.config.ts'),
+        ...playwrightArgs,
+      ], {
+        cwd: process.cwd(),
+        stdio: 'inherit',
+        shell: false,
+        env: {
+          ...process.env,
+          ...(forcedFailureMarker ? { MEDLIFE_E2E_FORCE_FAILURE: forcedFailureMarker } : {}),
+        },
+      });
+      frontend.bindPlaywrightChild(child);
+      child.once('error', reject);
+      child.once('exit', (code, signal) => {
+        resolveExit(normalizeExitCode(code, signal));
+      });
+    });
     process.exitCode = playwrightExit;
+    await frontend.assertHealthy('after-real-playwright');
   } finally {
     try {
       backend.kill('SIGTERM');
@@ -140,6 +159,7 @@ async function main() {
       // already exited
     }
     await waitForPortReleased(BACKEND_PORT, 10000).catch(() => undefined);
+    await frontend.stop({ preserveLogsOnFailure: false, successful: process.exitCode === 0 });
     await waitForPortReleased(FRONTEND_PORT, 10000).catch(() => undefined);
     rmSync(TEMP_DIR, { recursive: true, force: true });
   }

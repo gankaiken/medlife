@@ -8,6 +8,7 @@ const authUserSchema = z.object({
   id: z.string(),
   email: z.string(),
   display_name: z.string(),
+  role: z.enum(['learner', 'educator_reviewer', 'clinical_reviewer', 'curriculum_reviewer', 'pilot_admin']),
   status: z.string(),
   created_at: z.string(),
   last_login_at: z.string().nullable().optional(),
@@ -36,6 +37,41 @@ const progressSchema = z.object({
 });
 
 export type LearnerProgress = z.infer<typeof progressSchema>;
+
+const userPreferencesSchema = z.object({
+  learner_stage: z.enum([
+    'pre_clinical_foundation',
+    'transition_to_clinical_learning',
+    'early_clinical',
+    'core_clinical_rotation',
+    'pre_intern_preparation',
+  ]),
+  non_3d_mode: z.boolean(),
+  low_bandwidth_mode: z.boolean(),
+  reduced_motion_mode: z.boolean(),
+  background_audio_enabled: z.boolean(),
+  educational_notice_acknowledged_at: z.string().nullable().optional(),
+  research_participation_status: z.enum(['not_answered', 'consented', 'declined', 'withdrawn']),
+  research_consent_version: z.string().nullable().optional(),
+  research_consented_at: z.string().nullable().optional(),
+  research_withdrawn_at: z.string().nullable().optional(),
+  deidentified_research_id: z.string().nullable().optional(),
+  updated_at: z.string(),
+});
+
+export type UserPreferences = z.infer<typeof userPreferencesSchema>;
+
+const pilotAttemptSchema = z.record(z.any());
+const pilotReviewSchema = z.record(z.any());
+const pilotAnalyticsSchema = z.record(z.any());
+const consentEventSchema = z.record(z.any());
+const researchExportSchema = z.record(z.any());
+
+export type PilotAttempt = z.infer<typeof pilotAttemptSchema>;
+export type PilotReview = z.infer<typeof pilotReviewSchema>;
+export type PilotAnalytics = z.infer<typeof pilotAnalyticsSchema>;
+export type ResearchConsentEvent = z.infer<typeof consentEventSchema>;
+export type ResearchExportPayload = z.infer<typeof researchExportSchema>;
 
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -93,6 +129,26 @@ async function requestBlob(path: string, init: RequestInit): Promise<{ blob: Blo
 
 export function fetchCurrentSession(): Promise<AuthSession> {
   return requestJson('/auth/me', { method: 'GET' }, authSessionSchema);
+}
+
+export function fetchAccountPreferences(): Promise<UserPreferences> {
+  return requestJson('/auth/preferences', { method: 'GET' }, userPreferencesSchema);
+}
+
+export function updateAccountPreferences(input: {
+  learner_stage: UserPreferences['learner_stage'];
+  non_3d_mode: boolean;
+  low_bandwidth_mode: boolean;
+  reduced_motion_mode: boolean;
+  background_audio_enabled: boolean;
+  educational_notice_acknowledged_at: string | null;
+  research_participation_status: UserPreferences['research_participation_status'];
+}): Promise<UserPreferences> {
+  return requestJson('/auth/preferences', { method: 'PUT', body: JSON.stringify(input) }, userPreferencesSchema);
+}
+
+export function listResearchConsentEvents(): Promise<ResearchConsentEvent[]> {
+  return requestJson('/auth/research-consent-events', { method: 'GET' }, z.array(consentEventSchema));
 }
 
 export function registerAccount(input: { email: string; display_name: string; password: string }): Promise<AuthSession> {
@@ -163,6 +219,96 @@ export function deleteServerEncounter(encounterId: string): Promise<{ deleted: b
 
 export function fetchLearnerProgress(): Promise<LearnerProgress> {
   return requestJson('/progress', { method: 'GET' }, progressSchema);
+}
+
+export function listPilotAttempts(): Promise<PilotAttempt[]> {
+  return requestJson('/pilot/attempts', { method: 'GET' }, z.array(pilotAttemptSchema));
+}
+
+export function createPilotAttemptReview(
+  encounterId: string,
+  input: {
+    educator_comment: string;
+    agreement_label: 'agree' | 'partially_agree' | 'disagree';
+    safety_concern_level: 'none' | 'minor_omission' | 'important_omission' | 'safety_critical_omission' | 'potentially_harmful_action';
+    reviewed_status: 'educator_reviewed' | 'review_logged';
+  },
+): Promise<PilotReview> {
+  return requestJson(
+    `/pilot/attempts/${encounterId}/review`,
+    { method: 'POST', body: JSON.stringify(input) },
+    pilotReviewSchema,
+  );
+}
+
+export function createPilotAttemptScore(
+  encounterId: string,
+  input: {
+    rubric_version: string;
+    review_mode: 'independent' | 'assisted';
+    overall_score: number | null;
+    overall_category: string;
+    domain_scores: Record<string, Record<string, unknown>>;
+    safety_findings: string[];
+    missed_history_concepts: string[];
+    investigation_evaluation: string;
+    diagnosis_evaluation: string;
+    communication_evaluation: string;
+    educator_comment: string;
+    confidence_label: 'low' | 'medium' | 'high';
+    review_minutes: number;
+    submit_status: 'draft' | 'submitted';
+    amended_from_score_id?: string | null;
+  },
+): Promise<PilotReview> {
+  return requestJson(
+    `/pilot/attempts/${encounterId}/scores`,
+    { method: 'POST', body: JSON.stringify(input) },
+    pilotReviewSchema,
+  );
+}
+
+export function listPilotAttemptScores(encounterId: string): Promise<PilotReview[]> {
+  return requestJson(`/pilot/attempts/${encounterId}/scores`, { method: 'GET' }, z.array(pilotReviewSchema));
+}
+
+export function listPilotAttemptReviews(encounterId: string): Promise<PilotReview[]> {
+  return requestJson(`/pilot/attempts/${encounterId}/reviews`, { method: 'GET' }, z.array(pilotReviewSchema));
+}
+
+export function listPilotCaseReviews(caseId?: string): Promise<PilotReview[]> {
+  const path = caseId ? `/pilot/case-reviews?case_id=${encodeURIComponent(caseId)}` : '/pilot/case-reviews';
+  return requestJson(path, { method: 'GET' }, z.array(pilotReviewSchema));
+}
+
+export function createPilotCaseReview(
+  caseId: string,
+  input: {
+    review_type: 'clinical' | 'curriculum' | 'simulation' | 'ai';
+    decision: 'request_revision' | 'candidate_public_source_mapping' | 'academic_review_required' | 'academically_reviewed' | 'curriculum_approved' | 'clinically_reviewed' | 'pilot_ready_pending_other_reviews';
+    comments: string;
+    mapping_version?: string | null;
+    next_review_date?: string | null;
+    fixture_label?: string | null;
+  },
+): Promise<PilotReview> {
+  return requestJson(
+    `/pilot/cases/${caseId}/review`,
+    { method: 'POST', body: JSON.stringify(input) },
+    pilotReviewSchema,
+  );
+}
+
+export function fetchPilotAnalytics(): Promise<PilotAnalytics> {
+  return requestJson('/pilot/analytics', { method: 'GET' }, pilotAnalyticsSchema);
+}
+
+export function exportPilotResearchData(input?: { pilot_id?: string; consent_version?: string | null }): Promise<{ blob: Blob; filename: string | null }> {
+  const params = new URLSearchParams();
+  if (input?.pilot_id) params.set('pilot_id', input.pilot_id);
+  if (input?.consent_version) params.set('consent_version', input.consent_version);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return requestBlob(`/pilot/research/export${suffix}`, { method: 'GET' });
 }
 
 export function migrateLocalAttempts(entries: EvalHistoryEntry[]): Promise<EncounterAttempt[]> {
