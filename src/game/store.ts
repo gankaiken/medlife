@@ -57,11 +57,12 @@ function createEncounterId(caseId: string): string {
 }
 
 function buildInitialState(): GameState {
+  const routeState = readInitialRouteState();
   return {
-    screen: 'splash',
+    screen: routeState.screen,
     onboardingStep: 0,
     selectedCaseId: initialCaseId,
-    viewedEvalHistoryId: null,
+    viewedEvalHistoryId: routeState.viewedEvalHistoryId,
     endConfirm: DEFAULT_END_CONFIRM,
     tweaks: DEFAULT_TWEAKS,
     lastEncounter: null,
@@ -70,6 +71,30 @@ function buildInitialState(): GameState {
       patient: null,
     },
   };
+}
+
+function readInitialRouteState(): Pick<GameState, 'screen' | 'viewedEvalHistoryId'> {
+  if (typeof window === 'undefined' || !window.location || typeof window.location.pathname !== 'string') {
+    return { screen: 'splash', viewedEvalHistoryId: null };
+  }
+  const normalized = window.location.pathname.replace(/\/+$/, '') || '/';
+  const historicalMatch = normalized.match(/^\/history\/([^/]+)\/debrief$/);
+  if (historicalMatch) {
+    return {
+      screen: 'debrief',
+      viewedEvalHistoryId: decodeURIComponent(historicalMatch[1]),
+    };
+  }
+  if (normalized === '/history') {
+    return { screen: 'history', viewedEvalHistoryId: null };
+  }
+  if (normalized === '/agentic-rounds') {
+    return { screen: 'agenticRounds', viewedEvalHistoryId: null };
+  }
+  if (normalized === '/agent-topology') {
+    return { screen: 'agentTopology', viewedEvalHistoryId: null };
+  }
+  return { screen: 'splash', viewedEvalHistoryId: null };
 }
 
 let state: GameState = buildInitialState();
@@ -151,6 +176,14 @@ export const store = {
 
   setScreen(screen: Screen): void {
     setState((prev) => ({ ...prev, screen }));
+  },
+
+  openHistory(): void {
+    setState((prev) => ({
+      ...prev,
+      screen: 'history',
+      viewedEvalHistoryId: null,
+    }));
   },
 
   beginFromSplash(): void {

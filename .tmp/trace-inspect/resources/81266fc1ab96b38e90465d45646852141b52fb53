@@ -1,0 +1,373 @@
+# Instructions
+
+- Following Playwright test failed.
+- Explain why, be concise, respect Playwright best practices.
+- Provide a snippet of code with the fix, if possible.
+
+# Test info
+
+- Name: pilot-readiness.real.spec.ts >> pilot readiness educator scoring stays independent, auditable, and distinguishable from automated assessment
+- Location: scripts\e2e\pilot-readiness.real.spec.ts:669:1
+
+# Error details
+
+```
+Error: expect(locator).toBeVisible() failed
+
+Locator: getByTestId('next-case')
+Expected: visible
+Timeout: 5000ms
+Error: element(s) not found
+
+Call log:
+  - Expect "toBeVisible" with timeout 5000ms
+  - waiting for getByTestId('next-case')
+
+```
+
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic "Back to start" [ref=e6] [cursor=pointer]:
+        - generic [ref=e8]:
+          - text: medlife
+          - generic [ref=e9]: sim
+      - generic [ref=e11]: Pilot workspace
+      - generic "Open profile" [ref=e12] [cursor=pointer]:
+        - generic [ref=e13]: Trainee
+        - generic [ref=e14]: B
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]:
+          - generic [ref=e18]: Controlled pilot review
+          - heading "Educator and reviewer workspace" [level=1] [ref=e19]
+          - generic [ref=e20]: This console supports formative review, candidate curriculum checks, and case-governance logging. It does not create official Monash approval.
+        - button "Back to dashboard" [ref=e21] [cursor=pointer]
+      - generic [ref=e22]:
+        - generic [ref=e23]:
+          - generic [ref=e24]: Attempts
+          - generic [ref=e25]: "1"
+        - generic [ref=e26]:
+          - generic [ref=e27]: Completed
+          - generic [ref=e28]: "1"
+        - generic [ref=e29]:
+          - generic [ref=e30]: Reviews
+          - generic [ref=e31]: "1"
+        - generic [ref=e32]:
+          - generic [ref=e33]: Small sample
+          - generic [ref=e34]: "Yes"
+      - generic [ref=e35]: "Agreement sample: 1. Small fixture or pilot samples are not treated as proof of educational validity."
+      - generic [ref=e36]:
+        - generic [ref=e37]:
+          - generic [ref=e38]: Learner attempts
+          - 'button "Aisha Rahman Learner: Learner Pilot · completed" [ref=e40] [cursor=pointer]':
+            - generic [ref=e41]:
+              - generic [ref=e42]: Aisha Rahman
+              - generic [ref=e43]: "Learner: Learner Pilot · completed"
+        - generic [ref=e44]:
+          - generic [ref=e45]: Attempt review
+          - generic [ref=e46]:
+            - generic [ref=e47]: Aisha Rahman
+            - generic [ref=e48]: Learner Pilot · rule_based
+            - generic [ref=e49]: "Case version: 1.0.0 · Integrity: server_verified"
+          - textbox "Educator review comment" [ref=e50]:
+            - /placeholder: Educator comment
+          - generic [ref=e51]:
+            - combobox [ref=e52]:
+              - option "Agree with automated feedback" [selected]
+              - option "Partially agree"
+              - option "Disagree"
+            - combobox [ref=e53]:
+              - option "No safety concern" [selected]
+              - option "Minor omission"
+              - option "Important omission"
+              - option "Safety-critical omission"
+              - option "Potentially harmful action"
+          - button "Save educator review" [disabled] [ref=e54] [cursor=pointer]
+          - generic [ref=e56]:
+            - generic [ref=e57]: Educator Reviewer
+            - generic [ref=e58]: educator_reviewed · agree · none
+            - generic [ref=e59]: Automated feedback partly matches educator judgement.
+          - generic [ref=e60]:
+            - generic [ref=e61]: Independent educator scoring
+            - generic [ref=e62]:
+              - textbox "Rubric version" [ref=e63]: medlife-formative-rubric-v1
+              - textbox "Overall category" [ref=e64]: satisfactory
+              - textbox "Overall score" [ref=e65]: "74"
+            - generic [ref=e66]:
+              - textbox "Data gathering verdict" [ref=e67]: satisfactory
+              - textbox "Clinical management verdict" [ref=e68]: satisfactory
+              - textbox "Communication verdict" [ref=e69]: good
+            - textbox "Missed history concepts" [ref=e70]:
+              - /placeholder: Missed history concepts, comma separated
+              - text: stress context
+            - textbox "Safety findings" [ref=e71]:
+              - /placeholder: Safety findings, comma separated
+              - text: no immediate safety breach
+            - textbox "Investigation evaluation" [ref=e72]: Appropriate for the presented complaint.
+            - textbox "Diagnosis evaluation" [ref=e73]: Working diagnosis is reasonable.
+            - textbox "Communication evaluation" [ref=e74]: Clear and supportive.
+            - textbox "Independent educator feedback" [ref=e75]
+            - generic [ref=e76]:
+              - combobox [ref=e77]:
+                - option "Low confidence"
+                - option "Medium confidence" [selected]
+                - option "High confidence"
+              - textbox "Review minutes" [ref=e78]: "10"
+            - button "Save independent score" [disabled] [ref=e79] [cursor=pointer]
+            - generic [ref=e81]:
+              - generic [ref=e82]: Educator Reviewer
+              - generic [ref=e83]: Independent score Â· satisfactory Â· rubric medlife-formative-rubric-v1
+              - generic [ref=e84]: Independent score recorded in the pilot workspace.
+      - generic [ref=e85]:
+        - generic [ref=e86]: Case review workflow
+        - generic [ref=e87]:
+          - combobox [ref=e88]:
+            - option "Aisha Rahman" [selected]
+            - option "Tom Whitford"
+            - option "Leila Haddad"
+          - combobox [ref=e89]:
+            - option "Clinical review"
+            - option "Curriculum review" [selected]
+            - option "Simulation review"
+            - option "AI review"
+          - combobox [ref=e90]:
+            - option "Request revision"
+            - option "Candidate public-source mapping"
+            - option "Academic review required" [selected]
+            - option "Academically reviewed"
+            - option "Curriculum approved"
+            - option "Clinically reviewed"
+            - option "Pilot ready pending other reviews"
+        - textbox "Case review comments" [ref=e91]:
+          - /placeholder: Review comments
+        - textbox "Case review fixture label" [ref=e92]:
+          - /placeholder: Fixture label for development review records
+          - text: development_test_fixture
+        - button "Save case review" [disabled] [ref=e93] [cursor=pointer]
+        - generic [ref=e94]:
+          - generic [ref=e95]:
+            - generic [ref=e96]: Selected case readiness
+            - generic [ref=e97]:
+              - generic [ref=e98]: "Stage: early clinical"
+              - generic [ref=e99]: "Curriculum status: academic review required"
+              - generic [ref=e100]: "Clinical status: clinical review required"
+              - generic [ref=e101]: "Simulation status: review pending"
+              - generic [ref=e102]: "AI status: review pending"
+              - generic [ref=e103]: "Pilot ready: not pilot ready"
+          - generic [ref=e104]:
+            - generic [ref=e105]: Recorded review log
+            - generic [ref=e107]: No case reviews recorded yet.
+  - button "Mute music" [ref=e108] [cursor=pointer]:
+    - generic [ref=e109]: 🎵
+```
+
+# Test source
+
+```ts
+  721 |   });
+  722 |   expect(assessmentResponse.status).toBe(200);
+  723 |   await waitForEncounterStatus(learnerSetup, encounterId, 'completed');
+  724 |   await learnerSetup.close();
+  725 | 
+  726 |   const educator = await browser.newPage();
+  727 |   await openWorkspace(educator, emails.educator, expectedRoles.educator);
+  728 |   await educator.getByTestId('pilot-attempt-list').getByRole('button').first().click();
+  729 |   await expect(educator.getByLabel('Overall category')).toHaveValue('');
+  730 |   await expect(educator.getByLabel('Overall score')).toHaveValue('');
+  731 | 
+  732 |   await educator.getByLabel('Overall category').fill('satisfactory');
+  733 |   await educator.getByLabel('Overall score').fill('74');
+  734 |   await educator.getByLabel('Data gathering verdict').fill('satisfactory');
+  735 |   await educator.getByLabel('Clinical management verdict').fill('satisfactory');
+  736 |   await educator.getByLabel('Communication verdict').fill('good');
+  737 |   await educator.getByLabel('Missed history concepts').fill('stress context');
+  738 |   await educator.getByLabel('Safety findings').fill('no immediate safety breach');
+  739 |   await educator.getByLabel('Investigation evaluation').fill('Appropriate for the presented complaint.');
+  740 |   await educator.getByLabel('Diagnosis evaluation').fill('Working diagnosis is reasonable.');
+  741 |   await educator.getByLabel('Communication evaluation').fill('Clear and supportive.');
+  742 |   await educator.getByLabel('Independent educator feedback').fill('Independent score recorded in the pilot workspace.');
+  743 |   await educator.getByTestId('save-independent-score').click();
+  744 |   await expect
+  745 |     .poll(async () => {
+  746 |       const response = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`);
+  747 |       return (response.json as Array<Record<string, unknown>>).length;
+  748 |     })
+  749 |     .toBeGreaterThan(0);
+  750 | 
+  751 |   await educator.getByLabel('Educator review comment').fill('Automated feedback partly matches educator judgement.');
+  752 |   await educator.getByTestId('save-educator-review').click();
+  753 | 
+  754 |   const scoresAfterFirst = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`);
+  755 |   const firstScores = scoresAfterFirst.json as Array<Record<string, any>>;
+  756 |   expect(firstScores.length).toBeGreaterThanOrEqual(1);
+  757 |   const originalScoreId = String(firstScores[0].id);
+  758 | 
+  759 |   const admin = await browser.newPage();
+  760 |   await openWorkspace(admin, emails.admin, expectedRoles.admin);
+  761 |   const secondScore = await apiRequest(admin, `/pilot/attempts/${encounterId}/scores`, {
+  762 |     method: 'POST',
+  763 |     body: {
+  764 |       rubric_version: 'medlife-formative-rubric-v1',
+  765 |       review_mode: 'independent',
+  766 |       overall_score: 68,
+  767 |       overall_category: 'borderline',
+  768 |       domain_scores: { interpersonal: { verdict: 'good' } },
+  769 |       safety_findings: ['follow-up advice too vague'],
+  770 |       missed_history_concepts: ['stress context'],
+  771 |       investigation_evaluation: 'Acceptable but incomplete',
+  772 |       diagnosis_evaluation: 'Reasonable differential narrowing',
+  773 |       communication_evaluation: 'Supportive',
+  774 |       educator_comment: 'Second reviewer score stored separately.',
+  775 |       confidence_label: 'medium',
+  776 |       review_minutes: 7,
+  777 |       submit_status: 'submitted',
+  778 |     },
+  779 |   });
+  780 |   expect(secondScore.status).toBe(200);
+  781 | 
+  782 |   const amendedScore = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`, {
+  783 |     method: 'POST',
+  784 |     body: {
+  785 |       rubric_version: 'medlife-formative-rubric-v1',
+  786 |       review_mode: 'independent',
+  787 |       overall_score: 76,
+  788 |       overall_category: 'good',
+  789 |       domain_scores: { data_gathering: { verdict: 'good' } },
+  790 |       safety_findings: [],
+  791 |       missed_history_concepts: ['stress context'],
+  792 |       investigation_evaluation: 'Improved after re-read',
+  793 |       diagnosis_evaluation: 'Still reasonable',
+  794 |       communication_evaluation: 'Strong rapport',
+  795 |       educator_comment: 'Amended educator score kept as a new audit entry.',
+  796 |       confidence_label: 'high',
+  797 |       review_minutes: 5,
+  798 |       submit_status: 'submitted',
+  799 |       amended_from_score_id: originalScoreId,
+  800 |     },
+  801 |   });
+  802 |   expect(amendedScore.status).toBe(200);
+  803 | 
+  804 |   const scoresFinal = await apiRequest(educator, `/pilot/attempts/${encounterId}/scores`);
+  805 |   const finalScores = scoresFinal.json as Array<Record<string, any>>;
+  806 |   expect(finalScores.length).toBeGreaterThanOrEqual(3);
+  807 |   expect(finalScores.some((item) => String(item.id) === originalScoreId)).toBeTruthy();
+  808 |   expect(finalScores.some((item) => String(item.amended_from_score_id ?? '') === originalScoreId)).toBeTruthy();
+  809 | 
+  810 |   const reviewsFinal = await apiRequest(educator, `/pilot/attempts/${encounterId}/reviews`);
+  811 |   expect(JSON.stringify(reviewsFinal.json)).toContain('partly matches educator judgement');
+  812 | 
+  813 |   const analytics = await apiRequest(educator, '/pilot/analytics');
+  814 |   expect(String((analytics.json as Record<string, any>).agreement_metrics.sample_size)).not.toBe('0');
+  815 | 
+  816 |   const learner = await browser.newPage();
+  817 |   await loginAccount(learner, emails.learner, expectedRoles.learner);
+  818 |   await learner.getByTestId('open-history').click();
+  819 |   await learner.getByTestId(`history-attempt-${encounterId}`).click();
+  820 |   await expect(learner).toHaveURL(new RegExp(`/history/${encounterId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/debrief$`));
+> 821 |   await expect(learner.getByTestId('next-case')).toBeVisible();
+      |                                                  ^ Error: expect(locator).toBeVisible() failed
+  822 |   await expect(learner.getByTestId('evidence-integrity-line')).toBeVisible();
+  823 |   await expect(learner.getByText(/Educator reviewed/i)).toBeVisible();
+  824 |   await expect(learner.getByText(/No educator review has been recorded/i)).toHaveCount(0);
+  825 |   await expect(learner.getByText(/Automated feedback partly matches educator judgement\./i)).toBeVisible();
+  826 |   await learner.reload();
+  827 |   await expect(learner).toHaveURL(new RegExp(`/history/${encounterId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/debrief$`));
+  828 |   await expect(learner.getByTestId('evidence-integrity-line')).toBeVisible();
+  829 |   await learner.goBack();
+  830 |   await expect(learner).toHaveURL(/\/history$/);
+  831 |   await focusAndPress(learner.getByTestId(`history-attempt-${encounterId}`), 'Enter');
+  832 |   await expect(learner.getByTestId('evidence-integrity-line')).toBeVisible();
+  833 | 
+  834 |   await educator.close();
+  835 |   await admin.close();
+  836 |   await learner.close();
+  837 | });
+  838 | 
+  839 | test('pilot readiness direct historical debrief links reload for owners and reject other learners safely', async ({ browser }) => {
+  840 |   await registerRoleIfNeeded(browser, emails.learner, 'Learner Pilot', expectedRoles.learner);
+  841 |   const owner = await browser.newPage();
+  842 |   await loginAccount(owner, emails.learner, expectedRoles.learner);
+  843 |   const encounterId = `enc-direct-${Date.now()}`;
+  844 |   const draftSnapshot = buildHeadacheDraftSnapshot(encounterId);
+  845 |   expect((await apiRequest(owner, '/encounters', {
+  846 |     method: 'POST',
+  847 |     body: {
+  848 |       encounter_id: encounterId,
+  849 |       case_id: 'case-headache-001',
+  850 |       conversation_mode: 'guided',
+  851 |       draft_snapshot: draftSnapshot,
+  852 |     },
+  853 |   })).status).toBe(200);
+  854 |   expect((await apiRequest(owner, `/encounters/${encodeURIComponent(encounterId)}/assessment`, {
+  855 |     method: 'POST',
+  856 |     body: {
+  857 |       completion_snapshot: {
+  858 |         ...draftSnapshot,
+  859 |         submittedDiagnosisId: 'tension_headache',
+  860 |         completedAt: Date.now(),
+  861 |         evidenceIntegrityStatus: 'server_verified',
+  862 |         endConfirm: { sum: true, safe: true, ice: false },
+  863 |       },
+  864 |       integrity_status: 'server_verified',
+  865 |       engine: 'rule_based',
+  866 |       assessment_status: 'completed',
+  867 |       evaluation: {
+  868 |         case_id: 'case-headache-001',
+  869 |         global_rating: 'satisfactory',
+  870 |         domain_scores: {
+  871 |           data_gathering: { raw: 2, max: 3, verdict: 'satisfactory' },
+  872 |           clinical_management: { raw: 2, max: 3, verdict: 'satisfactory' },
+  873 |           interpersonal: { raw: 2, max: 3, verdict: 'satisfactory' },
+  874 |         },
+  875 |         criteria: [],
+  876 |         highlights: [],
+  877 |         improvements: [],
+  878 |         narrative: 'Direct-link historical debrief fixture.',
+  879 |         safety_breach: null,
+  880 |       },
+  881 |       evidence_refs: [],
+  882 |       receipts: [],
+  883 |     },
+  884 |   })).status).toBe(200);
+  885 |   await owner.goto(`${APP_URL}history/${encodeURIComponent(encounterId)}/debrief`);
+  886 |   await expect(owner.getByTestId('evidence-integrity-line')).toBeVisible();
+  887 |   await owner.reload();
+  888 |   await expect(owner.getByTestId('evidence-integrity-line')).toBeVisible();
+  889 | 
+  890 |   const otherLearnerEmail = `other.${Date.now()}@example.com`;
+  891 |   await registerRoleIfNeeded(browser, otherLearnerEmail, 'Other Learner', expectedRoles.learner);
+  892 |   const other = await browser.newPage();
+  893 |   await loginAccount(other, otherLearnerEmail, expectedRoles.learner);
+  894 |   await other.goto(`${APP_URL}history/${encodeURIComponent(encounterId)}/debrief`);
+  895 |   await expect(other.getByText(/No active case to debrief|No evaluation yet/i)).toBeVisible();
+  896 |   await expect(other.getByText(/Aisha Rahman/i)).toHaveCount(0);
+  897 | 
+  898 |   await owner.close();
+  899 |   await other.close();
+  900 | });
+  901 | 
+  902 | test('pilot readiness non-3d journey, keyboard flow, and accessibility scans stay functional without WebGL', async ({ browser }) => {
+  903 |   await registerRoleIfNeeded(browser, emails.learner, 'Learner Pilot', expectedRoles.learner);
+  904 |   await registerRoleIfNeeded(browser, emails.admin, 'Pilot Admin', expectedRoles.admin);
+  905 |   const page = await browser.newPage();
+  906 |   await page.addInitScript(() => {
+  907 |     const original = HTMLCanvasElement.prototype.getContext;
+  908 |     HTMLCanvasElement.prototype.getContext = function patched(type: string, ...args: unknown[]) {
+  909 |       if (type === 'webgl' || type === 'webgl2') {
+  910 |         throw new Error('webgl blocked for pilot-readiness non-3d proof');
+  911 |       }
+  912 |       return original.call(this, type, ...args as []);
+  913 |     };
+  914 |   });
+  915 | 
+  916 |   await loginAccount(page, emails.learner, expectedRoles.learner);
+  917 |   await scanForCriticalA11y(page, 'home');
+  918 | 
+  919 |   await focusAndPress(page.getByTestId('preference-non-3d'), ' ');
+  920 |   await focusAndPress(page.getByTestId('preference-low-bandwidth'), ' ');
+  921 |   await focusAndPress(page.getByTestId('preference-reduced-motion'), ' ');
+```

@@ -668,6 +668,122 @@ class AuthPersistenceTests(unittest.TestCase):
         self.assertEqual(len(payload["rows"]), 1)
         self.assertEqual(payload["rows"][0]["encounter_id"], "enc-consented")
 
+    def test_pilot_research_export_uses_latest_consent_event_when_projection_is_stale(self) -> None:
+        with patch.dict(os.environ, {"MEDLIFE_PILOT_ADMIN_EMAILS": "admin@example.com"}, clear=False):
+            admin = TestClient(server.app)
+            self._register("admin@example.com", display_name="Pilot Admin", client=admin)
+
+        learner = TestClient(server.app)
+        self._register("event-history@example.com", client=learner)
+        consent = learner.put(
+            "/auth/preferences",
+            headers={"X-CSRF-Token": self._csrf(learner)},
+            json={
+                "learner_stage": "early_clinical",
+                "non_3d_mode": True,
+                "low_bandwidth_mode": False,
+                "reduced_motion_mode": False,
+                "background_audio_enabled": True,
+                "educational_notice_acknowledged_at": "2026-07-12T00:00:00+00:00",
+                "research_participation_status": "consented",
+            },
+        )
+        self.assertEqual(consent.status_code, 200, consent.text)
+        learner_id = learner.get("/auth/me").json()["user"]["id"]
+        server.DB_CONN.execute(
+            """
+            UPDATE user_preferences
+            SET research_participation_status = 'not_answered',
+                research_consent_version = NULL,
+                research_consented_at = NULL
+            WHERE user_id = ?
+            """,
+            (learner_id,),
+        )
+        server.DB_CONN.commit()
+        self._create_encounter(client=learner, encounter_id="enc-event-history")
+        learner.post(
+            "/encounters/enc-event-history/assessment",
+            headers={"X-CSRF-Token": self._csrf(learner)},
+            json={
+                "completion_snapshot": build_snapshot(encounter_id="enc-event-history"),
+                "integrity_status": "server_verified",
+                "engine": "rule_based",
+                "assessment_status": "completed",
+                "evaluation": {"case_id": "case-headache-001", "global_rating": "good", "score": 80, "domain_scores": {}, "criteria": [], "highlights": [], "improvements": [], "narrative": "Done", "safety_breach": None},
+                "evidence_refs": [],
+                "receipts": [],
+            },
+        )
+        exported = admin.get("/pilot/research/export")
+        self.assertEqual(exported.status_code, 200, exported.text)
+        encounter_ids = [row["encounter_id"] for row in exported.json()["rows"]]
+        self.assertIn("enc-event-history", encounter_ids)
+
+    def test_pilot_research_export_is_prospective_from_consent_time(self) -> None:
+        with patch.dict(os.environ, {"MEDLIFE_PILOT_ADMIN_EMAILS": "admin@example.com"}, clear=False):
+            admin = TestClient(server.app)
+            self._register("admin@example.com", display_name="Pilot Admin", client=admin)
+
+        learner = TestClient(server.app)
+        self._register("prospective@example.com", client=learner)
+        self._create_encounter(client=learner, encounter_id="enc-before-consent")
+        learner.post(
+            "/encounters/enc-before-consent/assessment",
+            headers={"X-CSRF-Token": self._csrf(learner)},
+            json={
+                "completion_snapshot": build_snapshot(encounter_id="enc-before-consent"),
+                "integrity_status": "server_verified",
+                "engine": "rule_based",
+                "assessment_status": "completed",
+                "evaluation": {"case_id": "case-headache-001", "global_rating": "good", "score": 72, "domain_scores": {}, "criteria": [], "highlights": [], "improvements": [], "narrative": "Done", "safety_breach": None},
+                "evidence_refs": [],
+                "receipts": [],
+            },
+        )
+        server.DB_CONN.execute(
+            "UPDATE encounters SET completed_at = ?, submitted_at = ? WHERE id = ?",
+            ("2026-07-11T00:00:00+00:00", "2026-07-11T00:00:00+00:00", "enc-before-consent"),
+        )
+        server.DB_CONN.commit()
+        consent = learner.put(
+            "/auth/preferences",
+            headers={"X-CSRF-Token": self._csrf(learner)},
+            json={
+                "learner_stage": "early_clinical",
+                "non_3d_mode": True,
+                "low_bandwidth_mode": False,
+                "reduced_motion_mode": False,
+                "background_audio_enabled": True,
+                "educational_notice_acknowledged_at": "2026-07-12T00:00:00+00:00",
+                "research_participation_status": "consented",
+            },
+        )
+        self.assertEqual(consent.status_code, 200, consent.text)
+        exported_before = admin.get("/pilot/research/export")
+        self.assertEqual(exported_before.status_code, 200, exported_before.text)
+        self.assertEqual(exported_before.json()["rows"], [])
+
+        self._create_encounter(client=learner, encounter_id="enc-after-consent")
+        learner.post(
+            "/encounters/enc-after-consent/assessment",
+            headers={"X-CSRF-Token": self._csrf(learner)},
+            json={
+                "completion_snapshot": build_snapshot(encounter_id="enc-after-consent"),
+                "integrity_status": "server_verified",
+                "engine": "rule_based",
+                "assessment_status": "completed",
+                "evaluation": {"case_id": "case-headache-001", "global_rating": "good", "score": 81, "domain_scores": {}, "criteria": [], "highlights": [], "improvements": [], "narrative": "Done", "safety_breach": None},
+                "evidence_refs": [],
+                "receipts": [],
+            },
+        )
+        exported_after = admin.get("/pilot/research/export")
+        self.assertEqual(exported_after.status_code, 200, exported_after.text)
+        rows = exported_after.json()["rows"]
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["encounter_id"], "enc-after-consent")
+
     def test_educator_independent_score_is_stored_separately(self) -> None:
         with patch.dict(os.environ, {"MEDLIFE_EDUCATOR_REVIEWER_EMAILS": "reviewer@example.com"}, clear=False):
             reviewer = TestClient(server.app)
@@ -712,6 +828,48 @@ class AuthPersistenceTests(unittest.TestCase):
         scores = reviewer.get("/pilot/attempts/enc-score/scores")
         self.assertEqual(scores.status_code, 200, scores.text)
         self.assertEqual(scores.json()[0]["overall_category"], "satisfactory")
+
+    def test_completed_encounter_detail_is_owner_readable_and_cross_user_safe(self) -> None:
+        owner = TestClient(server.app)
+        other = TestClient(server.app)
+        self._register("history-owner@example.com", client=owner)
+        self._register("history-other@example.com", client=other)
+        self._create_encounter(client=owner, encounter_id="enc-history")
+        complete = owner.post(
+            "/encounters/enc-history/assessment",
+            headers={"X-CSRF-Token": self._csrf(owner)},
+            json={
+                "completion_snapshot": build_snapshot(encounter_id="enc-history"),
+                "integrity_status": "server_verified",
+                "engine": "rule_based",
+                "assessment_status": "completed",
+                "evaluation": {
+                    "case_id": "case-headache-001",
+                    "global_rating": "good",
+                    "domain_scores": {},
+                    "criteria": [],
+                    "highlights": [],
+                    "improvements": [],
+                    "narrative": "Historical debrief fixture.",
+                    "safety_breach": None,
+                },
+                "evidence_refs": [],
+                "receipts": [],
+            },
+        )
+        self.assertEqual(complete.status_code, 200, complete.text)
+
+        found = owner.get("/encounters/enc-history")
+        self.assertEqual(found.status_code, 200, found.text)
+        payload = found.json()
+        self.assertEqual(payload["id"], "enc-history")
+        self.assertEqual(payload["status"], "completed")
+        self.assertEqual(payload["assessment_status"], "completed")
+        self.assertEqual(payload["assessment_engine_value"], "rule_based")
+        self.assertEqual(payload["evaluation"]["narrative"], "Historical debrief fixture.")
+
+        denied = other.get("/encounters/enc-history")
+        self.assertEqual(denied.status_code, 404, denied.text)
 
     def test_login_rate_limit_resets_after_success(self) -> None:
         self._register("ratelimit@example.com")

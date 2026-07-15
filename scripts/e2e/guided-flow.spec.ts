@@ -252,10 +252,8 @@ test('full guided browser journey saves, reopens, and survives reload with rule-
   await expect(page.getByText(/A management plan was recorded\./i)).toBeVisible();
 
   await page.reload();
-  await page.getByTestId('enter-training-floor').click({ force: true });
-  await page.getByTestId('onboarding-next').click();
-  await page.getByTestId('onboarding-next').click();
-  await page.getByTestId('finish-onboarding').click({ force: true });
+  await expect(page.getByText(/A management plan was recorded\./i)).toBeVisible();
+  await page.getByTitle('Open profile').click();
   await expect(page.getByTestId('recent-attempts')).toContainText('Aisha Rahman');
 
   expect(pageErrors).toEqual([]);

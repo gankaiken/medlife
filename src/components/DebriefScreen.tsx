@@ -11,7 +11,7 @@ import { saveEvalHistory, getEvalHistory, type EvalHistoryEntry } from '../data/
 import { POLYCLINIC_DIAGNOSIS_LABELS } from '../data/polyclinicPatients';
 import { buildRuleBasedDebrief } from '../agents/ruleBasedDebrief';
 import { validateDisclosureReceiptAgainstContext } from '../agents/disclosureReceipts.ts';
-import { listPilotAttemptReviews, type PilotReview } from '../agents/accountApi';
+import { getServerEncounter, listPilotAttemptReviews, mapServerAttemptToEvalHistoryEntry, type PilotReview } from '../agents/accountApi';
 import type {
   CaseEvaluationInput,
   CriterionResult,
@@ -300,10 +300,12 @@ function StatusBanner({
   title,
   body,
   bg,
+  testId,
 }: {
   title: string;
   body: string;
   bg: string;
+  testId?: string;
 }) {
   return (
     <div
@@ -315,6 +317,7 @@ function StatusBanner({
         marginBottom: 22,
         transform: 'rotate(-0.4deg)',
       }}
+      data-testid={testId}
     >
       <div style={{ position: 'absolute', top: -14, left: 24 }} className="chip butter">
         ATTENDING
@@ -495,21 +498,86 @@ export function DebriefScreen() {
   const { persistAssessment } = useEncounterSync();
   const [retryKey, setRetryKey] = useState(0);
   const [attemptReviews, setAttemptReviews] = useState<PilotReview[]>([]);
+  const [historicalEntry, setHistoricalEntry] = useState<EvalHistoryEntry | null>(null);
+  const [historicalStatus, setHistoricalStatus] = useState<'idle' | 'loading' | 'ready' | 'not_found' | 'error'>('idle');
+  const [historicalError, setHistoricalError] = useState<string | null>(null);
+  const [historicalRetryKey, setHistoricalRetryKey] = useState(0);
+  const historicalMode = !!state.viewedEvalHistoryId;
+
+  useEffect(() => {
+    let cancelled = false;
+    const viewedId = state.viewedEvalHistoryId;
+    if (!viewedId) {
+      setHistoricalEntry(null);
+      setHistoricalStatus('idle');
+      setHistoricalError(null);
+      return;
+    }
+    const local = getEvalHistory(viewedId);
+    if (local) {
+      setHistoricalEntry(local);
+      setHistoricalStatus('ready');
+      setHistoricalError(null);
+      return;
+    }
+    if (!session?.authenticated) {
+      setHistoricalEntry(null);
+      setHistoricalStatus('not_found');
+      setHistoricalError(null);
+      return;
+    }
+    setHistoricalEntry(null);
+    setHistoricalStatus('loading');
+    setHistoricalError(null);
+    void getServerEncounter(viewedId)
+      .then((attempt) => {
+        if (cancelled) return;
+        const mapped = mapServerAttemptToEvalHistoryEntry(attempt);
+        if (!mapped) {
+          setHistoricalEntry(null);
+          setHistoricalStatus('error');
+          setHistoricalError('Saved attempt data is incomplete and could not be reconstructed.');
+          return;
+        }
+        setHistoricalEntry(mapped);
+        setHistoricalStatus('ready');
+        setHistoricalError(null);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setHistoricalEntry(null);
+        if (/not found|unauthori[sz]ed|forbidden/i.test(message)) {
+          setHistoricalStatus('not_found');
+          setHistoricalError(null);
+        } else {
+          setHistoricalStatus('error');
+          setHistoricalError(message);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.viewedEvalHistoryId, session?.authenticated, historicalRetryKey]);
 
   // Review-mode: when viewedEvalHistoryId is set, render a saved evaluation
   // from localStorage instead of running the agent against a fresh request.
   const reviewed = useMemo<EvalHistoryEntry | null>(() => {
-    return state.viewedEvalHistoryId ? getEvalHistory(state.viewedEvalHistoryId) : null;
-  }, [state.viewedEvalHistoryId]);
+    if (!state.viewedEvalHistoryId) return null;
+    if (historicalEntry) return historicalEntry;
+    const local = getEvalHistory(state.viewedEvalHistoryId);
+    if (local) return local;
+    return null;
+  }, [historicalEntry, state.viewedEvalHistoryId]);
 
   // Prefer the snapshot captured by `finishPolyclinicCase` — by the time we
   // mount, the live patient slot has been cleared so the 3D scene can play
   // the walk-out animation. Fall back to a still-seated patient (rare:
   // the screen was opened directly without ending the encounter).
-  const patient = reviewed?.patientSnapshot ?? state.lastEncounter ?? state.polyclinic.patient;
+  const patient = reviewed?.patientSnapshot ?? (!historicalMode ? state.lastEncounter ?? state.polyclinic.patient : null);
   const c = useMemo<PatientCase | null>(() => {
-    return patient?.case ?? (state.selectedCaseId ? getPatientCase(state.selectedCaseId) : null) ?? null;
-  }, [patient, state.selectedCaseId]);
+    return patient?.case ?? (!historicalMode && state.selectedCaseId ? getPatientCase(state.selectedCaseId) : null) ?? null;
+  }, [patient, state.selectedCaseId, historicalMode]);
 
   // In review mode, skip the agent — we already have the evaluation.
   const debriefRequest = useMemo(() => {
@@ -539,29 +607,16 @@ export function DebriefScreen() {
     ...(!backendReachable ? ['Backend unavailable. Showing a local rule-based assessment.'] : []),
     ...(live.error && localRuleBased ? ['AI debrief failed. Showing a rule-based assessment instead.'] : []),
   ];
+  const patientEncounterId = patient?.encounterId ?? null;
 
   // Persist the evaluation the FIRST time it arrives in this session.
-  const savedRef = useRef(false);
+  const savedEncounterRef = useRef<string | null>(null);
   useEffect(() => {
     if (reviewed) return;
-    if (savedRef.current) return;
     if (!evaluation || !patient || !c || !engine) return;
-    savedRef.current = true;
+    if (savedEncounterRef.current === patientEncounterId) return;
+    savedEncounterRef.current = patientEncounterId;
     const dxId = patient.submittedDiagnosisId ?? c.diagnosisOptions[0] ?? c.id;
-    saveEvalHistory({
-      id: patient.encounterId,
-      encounterId: patient.encounterId,
-      caseId: c.id,
-      caseName: c.name,
-      caseAge: c.age,
-      caseGender: c.gender,
-      diagnosisLabel: POLYCLINIC_DIAGNOSIS_LABELS[dxId] ?? dxId,
-      verdict: evaluation.global_rating,
-      engine,
-      evaluation,
-      integrityStatus: patient.evidenceIntegrityStatus,
-      patientSnapshot: patient,
-    });
     if (session?.authenticated) {
       void persistAssessment({
         patient,
@@ -570,15 +625,25 @@ export function DebriefScreen() {
         evaluation: evaluation as unknown as Record<string, unknown>,
       });
     }
-  }, [evaluation, patient, c, reviewed, engine, session?.authenticated, persistAssessment, live.error]);
-
-  // Clear review mode when the user navigates away from this screen.
-  useEffect(() => {
-    return () => {
-      if (state.viewedEvalHistoryId) store.clearViewedEval();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    try {
+      saveEvalHistory({
+        id: patient.encounterId,
+        encounterId: patient.encounterId,
+        caseId: c.id,
+        caseName: c.name,
+        caseAge: c.age,
+        caseGender: c.gender,
+        diagnosisLabel: POLYCLINIC_DIAGNOSIS_LABELS[dxId] ?? dxId,
+        verdict: evaluation.global_rating,
+        engine,
+        evaluation,
+        integrityStatus: patient.evidenceIntegrityStatus,
+        patientSnapshot: patient,
+      });
+    } catch {
+      // Keep the learner flow usable even if local cache persistence fails.
+    }
+  }, [evaluation, patient, patientEncounterId, c, reviewed, engine, session?.authenticated, persistAssessment, live.error]);
 
   useEffect(() => {
     const encounterId = patient?.encounterId;
@@ -596,11 +661,40 @@ export function DebriefScreen() {
       <TopBar here={5} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter', 'Debrief']} />
 
       <div style={{ padding: '28px 36px 60px', maxWidth: 1080, margin: '0 auto' }}>
-        {!c || !patient ? (
+        {historicalMode && historicalStatus === 'ready' && reviewed && (
+          <div
+            data-testid="historical-debrief-ready"
+            data-encounter-id={state.viewedEvalHistoryId ?? undefined}
+            style={{ display: 'none' }}
+          />
+        )}
+        {historicalMode && historicalStatus === 'loading' && !reviewed ? (
+          <StatusBanner
+            title="Loading saved debrief"
+            body="Reconstructing this completed attempt from your server-backed history."
+            bg="var(--sky)"
+            testId="historical-debrief-loading"
+          />
+        ) : historicalMode && historicalStatus === 'not_found' && !reviewed ? (
+          <StatusBanner
+            title="Saved debrief unavailable"
+            body="This historical attempt could not be found for your account, or you no longer have access to it."
+            bg="var(--cream-2)"
+            testId="historical-debrief-unavailable"
+          />
+        ) : historicalMode && historicalStatus === 'error' && !reviewed ? (
+          <StatusBanner
+            title="We couldn’t load this saved debrief"
+            body={historicalError ?? 'A temporary error interrupted historical loading. You can retry safely.'}
+            bg="var(--rose)"
+            testId="historical-debrief-error"
+          />
+        ) : !c || !patient ? (
           <StatusBanner
             title="No active case to debrief"
             body="The encounter has already been cleared. Pick a new case from the library to start fresh."
             bg="var(--cream-2)"
+            testId="historical-debrief-empty"
           />
         ) : fallbackActive && evaluation ? (
           <>
@@ -659,6 +753,17 @@ export function DebriefScreen() {
         )}
 
         <div style={{ display: 'flex', gap: 12, marginTop: 22 }}>
+          {historicalMode && historicalStatus === 'error' && (
+            <button
+              type="button"
+              className="btn-plush ghost"
+              style={{ flex: 1 }}
+              onClick={() => setHistoricalRetryKey((value) => value + 1)}
+              data-testid="retry-historical-debrief"
+            >
+              Retry saved debrief
+            </button>
+          )}
           {!reviewed && capabilities.backend_available && (
             <button
               type="button"
@@ -667,7 +772,7 @@ export function DebriefScreen() {
               disabled={!retryAllowed}
               onClick={() => {
                 if (!retryAllowed) return;
-                savedRef.current = false;
+                savedEncounterRef.current = null;
                 live.reset();
                 setRetryKey((value) => value + 1);
               }}
@@ -825,7 +930,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
               style={{
                 fontSize: 13,
                 fontWeight: 800,
-                color: 'var(--ink-2)',
+                color: 'var(--ink)',
                 textTransform: 'uppercase',
                 letterSpacing: '.06em',
               }}
@@ -834,7 +939,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
             </div>
             <h1 style={{ fontSize: 38, lineHeight: 1.05, margin: '4px 0 8px' }}>
               {GLOBAL_HEADLINE[verdict].split(' \u2014 ')[0]}{' '}
-              <span style={{ fontSize: 22, color: GLOBAL_DEEP[verdict] }}>
+              <span style={{ fontSize: 22, color: 'var(--ink)' }}>
                 {' \u00B7 ' + (GLOBAL_HEADLINE[verdict].split(' \u2014 ')[1] ?? '')}
               </span>
             </h1>

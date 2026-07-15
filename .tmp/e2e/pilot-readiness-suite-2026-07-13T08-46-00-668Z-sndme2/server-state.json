@@ -1,0 +1,12 @@
+{
+  "runId": "pilot-readiness-suite-2026-07-13T08-46-00-668Z-sndme2",
+  "pid": 3276,
+  "parentPid": 11000,
+  "port": 4173,
+  "command": "C:\\Program Files\\nodejs\\node.exe scripts/e2e/serve-static.mjs --dir dist --port 4173",
+  "rootDir": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\dist",
+  "startedAt": "2026-07-13T08:46:00.673Z",
+  "stdoutPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\pilot-readiness-suite-2026-07-13T08-46-00-668Z-sndme2\\server.stdout.log",
+  "stderrPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\pilot-readiness-suite-2026-07-13T08-46-00-668Z-sndme2\\server.stderr.log",
+  "tempDir": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\pilot-readiness-suite-2026-07-13T08-46-00-668Z-sndme2"
+}

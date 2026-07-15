@@ -4,10 +4,9 @@ import net from 'node:net';
 import { resolve } from 'node:path';
 import { startManagedStaticServer } from './server-lifecycle.mjs';
 
-const BACKEND_PORT = 8787;
-const FRONTEND_PORT = 4173;
-const TEMP_DIR = resolve('.tmp', 'real-backend-e2e');
-const DB_PATH = resolve(TEMP_DIR, 'medlife-round2c.sqlite3');
+const TEMP_ROOT = resolve('.tmp', 'real-backend-e2e');
+let shuttingDown = false;
+let shutdownPromise = null;
 
 function isPortOpen(port) {
   return new Promise((resolvePort) => {
@@ -77,6 +76,29 @@ function spawnBackground(command, args, extraEnv = {}) {
   });
 }
 
+function reservePort() {
+  return new Promise((resolvePort, rejectPort) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', rejectPort);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : null;
+      server.close((error) => {
+        if (error) {
+          rejectPort(error);
+          return;
+        }
+        if (typeof port !== 'number') {
+          rejectPort(new Error('failed to reserve port'));
+          return;
+        }
+        resolvePort(port);
+      });
+    });
+  });
+}
+
 async function main() {
   const rawArgs = process.argv.slice(2);
   const forceFailureIndex = rawArgs.indexOf('--force-failure');
@@ -86,11 +108,22 @@ async function main() {
     if (forceFailureIndex >= 0 && (index === forceFailureIndex || index === forceFailureIndex + 1)) return false;
     return true;
   });
-  rmSync(TEMP_DIR, { recursive: true, force: true });
-  mkdirSync(TEMP_DIR, { recursive: true });
+  const runId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const tempDir = resolve(TEMP_ROOT, runId);
+  const dbPath = resolve(tempDir, 'medlife-round2c.sqlite3');
+  mkdirSync(tempDir, { recursive: true });
+  const backendPort = await reservePort();
+  const frontendPort = await reservePort();
+  const apiOrigin = `http://127.0.0.1:${backendPort}`;
+  const appUrl = `http://127.0.0.1:${frontendPort}`;
 
   const env = {
-    MEDLIFE_DB_PATH: DB_PATH,
+    MEDLIFE_DB_PATH: dbPath,
+    MEDLIFE_E2E_TEST_MODE: '1',
+    MEDLIFE_EDUCATOR_REVIEWER_EMAILS: process.env.MEDLIFE_E2E_ROLE_EDUCATOR_EMAIL ?? 'educator@example.com',
+    MEDLIFE_CLINICAL_REVIEWER_EMAILS: process.env.MEDLIFE_E2E_ROLE_CLINICAL_EMAIL ?? 'clinical@example.com',
+    MEDLIFE_CURRICULUM_REVIEWER_EMAILS: process.env.MEDLIFE_E2E_ROLE_CURRICULUM_EMAIL ?? 'curriculum@example.com',
+    MEDLIFE_PILOT_ADMIN_EMAILS: process.env.MEDLIFE_E2E_ROLE_ADMIN_EMAIL ?? 'admin@example.com',
   };
 
   if (!existsSync(resolve('dist', 'index.html'))) {
@@ -105,28 +138,54 @@ async function main() {
 
   const frontend = await startManagedStaticServer({
     label: 'real-suite',
-    port: FRONTEND_PORT,
+    port: frontendPort,
     rootDir: 'dist',
     extraEnv: {
-      MEDLIFE_STATIC_PROXY_TARGET: `http://127.0.0.1:${BACKEND_PORT}`,
+      MEDLIFE_STATIC_PROXY_TARGET: apiOrigin,
     },
   });
   const backend = spawnBackground(
     'python',
-    ['-m', 'uvicorn', 'backend.server:app', '--host', '127.0.0.1', '--port', String(BACKEND_PORT)],
+    ['-m', 'uvicorn', 'backend.server:app', '--host', '127.0.0.1', '--port', String(backendPort)],
     env,
   );
 
-  const forwardSignal = (signal) => {
-    if (!backend.killed) {
-      backend.kill(signal);
-    }
+  const shutdown = async (reason, requestedExitCode = process.exitCode ?? 1) => {
+    if (shutdownPromise) return shutdownPromise;
+    shuttingDown = true;
+    shutdownPromise = (async () => {
+      try {
+        if (!backend.killed) {
+          backend.kill('SIGTERM');
+        }
+      } catch {
+        // ignore
+      }
+      await waitForPortReleased(backendPort, 10000).catch(() => undefined);
+      await frontend.stop({ preserveLogsOnFailure: true, successful: requestedExitCode === 0 });
+      rmSync(tempDir, { recursive: true, force: true });
+      return requestedExitCode;
+    })();
+    return shutdownPromise;
   };
-  process.once('SIGINT', forwardSignal);
-  process.once('SIGTERM', forwardSignal);
+
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT', 130).then((code) => process.exit(code));
+  });
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM', 143).then((code) => process.exit(code));
+  });
+  process.once('uncaughtException', (error) => {
+    process.stderr.write(`[real-e2e] uncaughtException: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    void shutdown('uncaughtException', 1).then((code) => process.exit(code));
+  });
+  process.once('unhandledRejection', (error) => {
+    process.stderr.write(`[real-e2e] unhandledRejection: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    void shutdown('unhandledRejection', 1).then((code) => process.exit(code));
+  });
 
   try {
-    await waitForPortOpen(BACKEND_PORT, 15000);
+    await waitForPortOpen(backendPort, 15000);
     await frontend.assertHealthy('before-real-playwright');
     const playwrightExit = await new Promise((resolveExit, reject) => {
       const child = spawn(process.execPath, [
@@ -141,6 +200,9 @@ async function main() {
         shell: false,
         env: {
           ...process.env,
+          PLAYWRIGHT_BASE_URL: appUrl,
+          MEDLIFE_E2E_APP_URL: `${appUrl}/`,
+          MEDLIFE_E2E_API_ORIGIN: apiOrigin,
           ...(forcedFailureMarker ? { MEDLIFE_E2E_FORCE_FAILURE: forcedFailureMarker } : {}),
         },
       });
@@ -153,15 +215,9 @@ async function main() {
     process.exitCode = playwrightExit;
     await frontend.assertHealthy('after-real-playwright');
   } finally {
-    try {
-      backend.kill('SIGTERM');
-    } catch {
-      // already exited
+    if (!shuttingDown) {
+      process.exitCode = await shutdown('normal-exit', process.exitCode ?? 1);
     }
-    await waitForPortReleased(BACKEND_PORT, 10000).catch(() => undefined);
-    await frontend.stop({ preserveLogsOnFailure: false, successful: process.exitCode === 0 });
-    await waitForPortReleased(FRONTEND_PORT, 10000).catch(() => undefined);
-    rmSync(TEMP_DIR, { recursive: true, force: true });
   }
 }
 

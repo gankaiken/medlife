@@ -1,0 +1,23 @@
+{
+  "runId": "1783945017004",
+  "parentPid": 9664,
+  "backendPid": 28888,
+  "frontendPid": 7964,
+  "backendPort": 53113,
+  "frontendPort": 53114,
+  "startedAt": "2026-07-13T12:16:57.041Z",
+  "tempDir": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\pilot-readiness-e2e\\1783945017004",
+  "sqlitePath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\pilot-readiness-e2e\\1783945017004\\medlife-pilot-readiness.sqlite3",
+  "backendStdoutPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\pilot-readiness-e2e\\1783945017004\\backend.stdout.log",
+  "backendStderrPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\pilot-readiness-e2e\\1783945017004\\backend.stderr.log",
+  "command": [
+    "python",
+    "-m",
+    "uvicorn",
+    "backend.server:app",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "53113"
+  ]
+}

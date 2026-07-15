@@ -1,4 +1,5 @@
 import { createServer, request as httpRequest } from 'node:http';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 
@@ -39,8 +40,43 @@ function shouldProxyRequest(pathname) {
     '/health',
     '/pilot',
     '/progress',
+    '/test-support',
     '/voice',
   ].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+function readJsonIfPresent(filePath) {
+  if (!filePath || !existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function cleanupManagedArtifacts() {
+  const runId = process.env.MEDLIFE_MANAGED_RUN_ID?.trim() ?? '';
+  const port = Number(process.env.MEDLIFE_MANAGED_PORT ?? '0');
+  const statePath = process.env.MEDLIFE_MANAGED_STATE_PATH?.trim() ?? '';
+  const activeStatePath = process.env.MEDLIFE_MANAGED_ACTIVE_STATE_PATH?.trim() ?? '';
+  const tempDir = process.env.MEDLIFE_MANAGED_TEMP_DIR?.trim() ?? '';
+
+  if (statePath) {
+    rmSync(statePath, { force: true });
+  }
+
+  if (activeStatePath) {
+    const activeState = readJsonIfPresent(activeStatePath);
+    const sameRun = activeState?.runId === runId;
+    const sameOwner = activeState?.pid === process.pid && activeState?.port === port;
+    if (!activeState || sameRun || sameOwner) {
+      rmSync(activeStatePath, { force: true });
+    }
+  }
+
+  if (tempDir) {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
 }
 
 async function proxyRequest(req, res, targetBase) {
@@ -112,6 +148,10 @@ export async function startStaticServer({
       });
       res.end(payload);
     } catch (error) {
+      if (res.headersSent || res.writableEnded || res.destroyed) {
+        res.end();
+        return;
+      }
       res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
       res.end(error instanceof Error ? error.message : String(error));
     }
@@ -216,6 +256,7 @@ export async function runStaticServerCli(argv = process.argv.slice(2), logger = 
         clearInterval(parentWatchdog);
         parentWatchdog = null;
       }
+      cleanupManagedArtifacts();
       exitAfterShutdown(code);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

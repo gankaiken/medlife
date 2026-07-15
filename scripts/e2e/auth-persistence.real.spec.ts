@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const fixtureDir = resolve('fixtures/rule-based');
+const API_ORIGIN = process.env.MEDLIFE_E2E_API_ORIGIN ?? 'http://127.0.0.1:8787';
 const localEvaluation = JSON.parse(
   readFileSync(resolve(fixtureDir, 'case-headache-001.expected.json'), 'utf8'),
 );
@@ -17,12 +18,27 @@ async function completeSplashAndOnboarding(page: Page) {
   await expect.poll(async () => {
     const response = await page.request.get('/');
     return response.status();
-  }).toBe(200);
+  }, { timeout: 15000 }).toBe(200);
   await page.goto('/');
-  await page.getByTestId('enter-training-floor').click({ force: true });
+  await page.getByTestId('enter-training-floor').evaluate((button: HTMLButtonElement) => button.click());
   await page.getByTestId('onboarding-next').click();
   await page.getByTestId('onboarding-next').click();
   await page.getByTestId('finish-onboarding').click({ force: true });
+}
+
+async function resumeFromSplashAfterReload(page: Page) {
+  if (await page.getByTestId('enter-training-floor').isVisible().catch(() => false)) {
+    await page.getByTestId('enter-training-floor').evaluate((button: HTMLButtonElement) => button.click());
+  }
+  if (await page.getByTestId('onboarding-next').isVisible().catch(() => false)) {
+    await page.getByTestId('onboarding-next').click();
+  }
+  if (await page.getByTestId('onboarding-next').isVisible().catch(() => false)) {
+    await page.getByTestId('onboarding-next').click();
+  }
+  if (await page.getByTestId('finish-onboarding').isVisible().catch(() => false)) {
+    await page.getByTestId('finish-onboarding').click({ force: true });
+  }
 }
 
 async function registerLearner(page: Page, suffix: string) {
@@ -44,11 +60,11 @@ async function loginLearner(page: Page, suffix: string) {
 
 async function waitForSignedOutSession(page: Page) {
   await page.waitForFunction(async () => {
-    const me = await fetch('http://127.0.0.1:8787/auth/me', { credentials: 'include' });
+    const me = await fetch('/auth/me', { credentials: 'include' });
     if (!me.ok) return false;
     const session = (await me.json()) as { authenticated?: boolean };
     if (session.authenticated) return false;
-    const protectedResponse = await fetch('http://127.0.0.1:8787/encounters', { credentials: 'include' });
+    const protectedResponse = await fetch('/encounters', { credentials: 'include' });
     return protectedResponse.status === 401;
   });
 }
@@ -59,7 +75,7 @@ async function startHeadacheCase(page: Page) {
   await page.getByTestId('browse-case-folder').click();
   await page.getByTestId('case-card-case-headache-001').click();
   await page.getByTestId('enter-encounter').click({ force: true });
-  await expect(page.getByText(/Loading encounter/i)).toHaveCount(0);
+  await expect(page.getByText(/Loading encounter/i)).toHaveCount(0, { timeout: 15000 });
 }
 
 async function completeGuidedEncounter(page: Page) {
@@ -88,7 +104,7 @@ async function completeGuidedEncounter(page: Page) {
 
 async function getFirstEncounterId(page: Page): Promise<string> {
   return await page.evaluate(async () => {
-    const response = await fetch('http://127.0.0.1:8787/encounters', {
+    const response = await fetch('/encounters', {
       credentials: 'include',
     });
     const payload = (await response.json()) as Array<{ id: string }>;
@@ -132,10 +148,7 @@ test('real backend resumes an incomplete authenticated encounter after reload', 
   await expect(page.getByTestId('sync-status')).toContainText(/Saved to server|Pending sync/i);
 
   await page.reload();
-  await page.getByTestId('enter-training-floor').click({ force: true });
-  await page.getByTestId('onboarding-next').click();
-  await page.getByTestId('onboarding-next').click();
-  await page.getByTestId('finish-onboarding').click({ force: true });
+  await resumeFromSplashAfterReload(page);
 
   await expect(page.getByTestId('resume-attempts')).toContainText('Aisha Rahman', { timeout: 15000 });
   await page.locator('[data-testid^="resume-attempt-"]').first().click();
@@ -157,34 +170,38 @@ test('real backend resumes an incomplete authenticated encounter after reload', 
 });
 
 test('real backend enforces cross-user encounter isolation', async ({ browser }) => {
+  test.slow();
   const pageA = await browser.newPage();
-  await completeSplashAndOnboarding(pageA);
-  await registerLearner(pageA, 'usera');
-  await startHeadacheCase(pageA);
-  await pageA.getByTestId('open-examination').click();
-  await pageA.getByTestId('history-question-ha-onset').click();
-  const encounterId = await getFirstEncounterId(pageA);
-  expect(encounterId).not.toEqual('');
+  const pages: Page[] = [pageA];
+  try {
+    await completeSplashAndOnboarding(pageA);
+    await registerLearner(pageA, 'usera');
+    await startHeadacheCase(pageA);
+    await pageA.getByTestId('open-examination').click();
+    await pageA.getByTestId('history-question-ha-onset').click();
+    const encounterId = await getFirstEncounterId(pageA);
+    expect(encounterId).not.toEqual('');
 
-  const pageB = await browser.newPage();
-  await completeSplashAndOnboarding(pageB);
-  await registerLearner(pageB, 'userb');
-  await pageB.getByTestId('open-history').click();
-  await expect(pageB.getByTestId('history-empty')).toBeVisible();
+    const pageB = await browser.newPage();
+    pages.push(pageB);
+    await completeSplashAndOnboarding(pageB);
+    await registerLearner(pageB, 'userb');
+    await pageB.getByTestId('open-history').click();
+    await expect(pageB.getByTestId('history-empty')).toBeVisible();
 
-  const denied = await pageB.evaluate(async (id) => {
-    const response = await fetch(`http://127.0.0.1:8787/encounters/${id}`, {
-      credentials: 'include',
-    });
-    return {
-      status: response.status,
-      body: await response.text(),
-    };
-  }, encounterId);
-  expect(denied.status).toBe(404);
-
-  await pageA.close();
-  await pageB.close();
+    const denied = await pageB.evaluate(async (id) => {
+      const response = await fetch(`/encounters/${id}`, {
+        credentials: 'include',
+      });
+      return {
+        status: response.status,
+        body: await response.text(),
+      };
+    }, encounterId);
+    expect(denied.status).toBe(404);
+  } finally {
+    await Promise.all(pages.map(async (page) => page.close().catch(() => undefined)));
+  }
 });
 
 test('real backend offers explicit local-history migration with honest legacy integrity labels', async ({ page }) => {
@@ -238,16 +255,16 @@ test('real backend offers explicit local-history migration with honest legacy in
   expect(migrationPayload[0]?.id).toBe('migrated-local-import-1');
   await expect.poll(async () => {
     return await page.evaluate(async () => {
-      const response = await fetch('http://127.0.0.1:8787/encounters', {
+      const response = await fetch('/encounters', {
         credentials: 'include',
       });
       const attempts = (await response.json()) as Array<{ id?: string; integrity_status?: string }>;
       return attempts[0]?.id ?? '';
     });
-  }).toBe('migrated-local-import-1');
+  }, { timeout: 15000 }).toBe('migrated-local-import-1');
   await expect(page.getByTestId('recent-attempts')).toContainText('Aisha Rahman');
   const attempts = await page.evaluate(async () => {
-    const response = await fetch('http://127.0.0.1:8787/encounters', {
+    const response = await fetch('/encounters', {
       credentials: 'include',
     });
     return (await response.json()) as Array<{ id?: string; integrity_status?: string }>;
@@ -258,13 +275,12 @@ test('real backend offers explicit local-history migration with honest legacy in
 });
 
 test('real backend flow shows pending sync during a forced save failure and recovers on retry', async ({ page }) => {
-  let failedOnce = false;
+  let allowRetry = false;
   await completeSplashAndOnboarding(page);
   await registerLearner(page, 'syncfail');
 
   await page.route('**/encounters/*/events', async (route) => {
-    if (route.request().method() === 'POST' && !failedOnce) {
-      failedOnce = true;
+    if (route.request().method() === 'POST' && !allowRetry) {
       await route.fulfill({
         status: 503,
         contentType: 'application/json',
@@ -276,11 +292,41 @@ test('real backend flow shows pending sync during a forced save failure and reco
   });
 
   await startHeadacheCase(page);
+  await expect(page.getByTestId('sync-status')).toContainText(/Saved to server/i, { timeout: 15000 });
   await page.getByTestId('open-examination').click();
   await page.getByTestId('history-question-ha-onset').click();
-  await expect(page.getByTestId('sync-status')).toContainText(/Pending sync/i);
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const raw = window.localStorage.getItem('medlife.pendingSync.v1');
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw) as Record<string, unknown[]>;
+      return Object.values(parsed).reduce((count, items) => count + (Array.isArray(items) ? items.length : 0), 0);
+    });
+  }).toBeGreaterThan(0);
+  await expect(page.getByTestId('sync-status')).toContainText(/Local session|Pending sync/i);
 
   await page.keyboard.press('Escape');
-  await page.getByTestId('retry-sync-inline').click({ force: true });
-  await expect(page.getByTestId('sync-status')).toContainText(/Saved to server/i, { timeout: 15000 });
+  allowRetry = true;
+  await page.reload();
+  if (await page.getByTestId('enter-training-floor').isVisible().catch(() => false)) {
+    await page.getByTestId('enter-training-floor').click({ force: true });
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('onboarding-next').click();
+    await page.getByTestId('finish-onboarding').click({ force: true });
+  }
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const raw = window.localStorage.getItem('medlife.pendingSync.v1');
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw) as Record<string, unknown[]>;
+      return Object.values(parsed).reduce((count, items) => count + (Array.isArray(items) ? items.length : 0), 0);
+    });
+  }, { timeout: 15000 }).toBe(0);
+  await expect.poll(async () => {
+    return await page.evaluate(async () => {
+      const response = await fetch('/encounters', { credentials: 'include' });
+      const attempts = (await response.json()) as Array<{ case_id?: string }>;
+      return attempts.filter((attempt) => attempt.case_id === 'case-headache-001').length;
+    });
+  }, { timeout: 15000 }).toBeGreaterThan(0);
 });

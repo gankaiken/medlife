@@ -2,8 +2,8 @@
   --line: #16313b;
   --line-soft: rgba(22, 49, 59, 0.18);
   --ink: #10252d;
-  --ink-2: #49616b;
-  --ink-3: #6f8790;
+  --ink-2: #17313a;
+  --ink-3: #35515c;
   --cream: #edf5f7;
   --cream-2: #e2eef1;
   --paper: #f8fbfc;
@@ -13,7 +13,7 @@
   --peach-deep: #d97945;
   --rose: #f6c4ce;
   --rose-deep: #b65773;
-  --butter: #f9ebb2;
+  --butter: #fde38a;
   --butter-deep: #c7a23c;
   --sky: #d0ebff;
   --sky-deep: #4c8fbd;
@@ -142,6 +142,7 @@ button {
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+  color: var(--ink);
 }
 
 .chip.mint {
@@ -149,7 +150,7 @@ button {
 }
 
 .chip.butter {
-  background: var(--butter);
+  background: #fff4cf;
 }
 
 .chip.peach {
@@ -213,6 +214,26 @@ button {
 
 .popin {
   animation: popin 460ms ease both;
+}
+
+html[data-reduced-motion='true'] *,
+html[data-reduced-motion='true'] *::before,
+html[data-reduced-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-reduced-motion='true'] .popin,
+html[data-reduced-motion='true'] .floaty,
+html[data-reduced-motion='true'] .breathe,
+html[data-reduced-motion='true'] .wobble,
+html[data-reduced-motion='true'] .drift,
+html[data-reduced-motion='true'] .blink {
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
 }
 
 @keyframes blink {

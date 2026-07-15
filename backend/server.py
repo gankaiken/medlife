@@ -59,6 +59,7 @@ from .persistence import (
     create_session,
     create_user,
     delete_encounter_for_user,
+    explain_research_export_eligibility,
     export_pilot_research_data,
     export_user_data,
     get_completed_attempt,
@@ -263,6 +264,7 @@ TEXT_AI_PATIENT_MODEL = os.environ.get("MEDLIFE_TEXT_AI_PATIENT_MODEL", "claude-
 MAX_LOCAL_MIGRATION_ENTRIES = max(int(os.environ.get("MEDLIFE_MAX_LOCAL_MIGRATION_ENTRIES", "50")), 1)
 MAX_EXPORT_FILENAME_SEGMENT = 32
 LOGIN_FAILURE_LIMIT = max(int(os.environ.get("MEDLIFE_LOGIN_FAILURE_LIMIT", "6")), 3)
+AUTH_LOGIN_ROUTE_LIMIT = "120/minute" if os.environ.get("MEDLIFE_E2E_TEST_MODE") == "1" else "15/minute"
 LOGIN_FAILURE_WINDOW_MINUTES = max(int(os.environ.get("MEDLIFE_LOGIN_FAILURE_WINDOW_MINUTES", "15")), 1)
 _LOGIN_FAILURES: dict[str, list[float]] = {}
 
@@ -719,6 +721,13 @@ class TestSupportCaseReviewSeedRequest(BaseModel):
     mapping_version: str | None = None
     next_review_date: str | None = None
     fixture_label: str | None = None
+
+
+class TestSupportResearchEligibilityResponse(BaseModel):
+    pilot_id: str
+    user_id: str
+    encounter_id: str | None = None
+    attempts: list[dict[str, Any]]
 
 
 _EHR_RECORDS = {
@@ -1460,7 +1469,7 @@ def auth_register(
 
 
 @app.post("/auth/login", response_model=AuthSessionResponse)
-@limiter.limit("15/minute")
+@limiter.limit(AUTH_LOGIN_ROUTE_LIMIT)
 def auth_login(
     request: Request,
     payload: AuthLoginRequest,
@@ -2076,6 +2085,37 @@ def test_support_seed_case_review(
         fixture_label=payload.fixture_label,
         next_review_date=payload.next_review_date,
     )
+
+
+@app.get("/test-support/research-export-eligibility", response_model=TestSupportResearchEligibilityResponse)
+def test_support_research_export_eligibility(
+    request: Request,
+    pilot_id: str = DEFAULT_PILOT_ID,
+    encounter_id: str | None = None,
+    medlife_session: str | None = Cookie(default=None),
+):
+    if os.environ.get("MEDLIFE_E2E_TEST_MODE") != "1":
+        raise HTTPException(status_code=404, detail="not found")
+    session = _require_session(medlife_session, request)
+    attempts = (
+        [{"id": encounter_id}]
+        if encounter_id
+        else list_encounters_for_user(DB_CONN, session["user_id"])
+    )
+    return {
+        "pilot_id": pilot_id,
+        "user_id": session["user_id"],
+        "encounter_id": encounter_id,
+        "attempts": [
+            explain_research_export_eligibility(
+                DB_CONN,
+                pilot_id=pilot_id,
+                user_id=session["user_id"],
+                encounter_id=str(item["id"]),
+            )
+            for item in attempts
+        ],
+    }
 
 
 @app.post("/agent/patient/respond", response_model=PatientRespondResponseModel)

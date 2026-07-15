@@ -245,7 +245,9 @@ export function HomeScreen() {
   };
 
   const openReview = (entry: EvalHistoryEntry) => {
-    saveEvalHistory(entry);
+    if (!session?.authenticated) {
+      saveEvalHistory(entry);
+    }
     store.viewEvalHistory(entry.id);
   };
 
@@ -531,10 +533,10 @@ export function HomeScreen() {
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 10 }}>
               <select
                 value={preferences.learner_stage}
+                aria-label="Learner stage"
                 data-testid="learner-stage-select"
                 onChange={(event) => {
                   void savePreferences({
-                    ...preferences,
                     learner_stage: event.target.value as typeof preferences.learner_stage,
                     educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at,
                   });
@@ -554,7 +556,6 @@ export function HomeScreen() {
                   data-testid="preference-non-3d"
                   onChange={(event) => {
                     void savePreferences({
-                      ...preferences,
                       non_3d_mode: event.target.checked,
                       educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
                     });
@@ -569,7 +570,6 @@ export function HomeScreen() {
                   data-testid="preference-low-bandwidth"
                   onChange={(event) => {
                     void savePreferences({
-                      ...preferences,
                       low_bandwidth_mode: event.target.checked,
                       educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
                     });
@@ -586,7 +586,6 @@ export function HomeScreen() {
                   data-testid="preference-reduced-motion"
                   onChange={(event) => {
                     void savePreferences({
-                      ...preferences,
                       reduced_motion_mode: event.target.checked,
                       educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
                     });
@@ -601,7 +600,6 @@ export function HomeScreen() {
                   data-testid="preference-background-audio"
                   onChange={(event) => {
                     void savePreferences({
-                      ...preferences,
                       background_audio_enabled: event.target.checked,
                       educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
                     });
@@ -611,10 +609,10 @@ export function HomeScreen() {
               </label>
               <select
                 value={preferences.research_participation_status}
+                aria-label="Research participation preference"
                 data-testid="research-participation-select"
                 onChange={(event) => {
                   void savePreferences({
-                    ...preferences,
                     research_participation_status: event.target.value as typeof preferences.research_participation_status,
                     educational_notice_acknowledged_at: preferences.educational_notice_acknowledged_at ?? new Date().toISOString(),
                   });
@@ -630,9 +628,9 @@ export function HomeScreen() {
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 10, lineHeight: 1.5 }}>
               Educational access stays available even if research use is declined. AI, rule-based grading, and learner-written reflection remain distinct records.
             </div>
-            {preferences.low_bandwidth_mode && (
+            {(preferences.low_bandwidth_mode || preferences.non_3d_mode) && (
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 8 }} data-testid="low-bandwidth-honesty-note">
-                low-bandwidth preference - optimisation incomplete
+                accessibility-mode optimisation incomplete
               </div>
             )}
           </div>
@@ -765,7 +763,7 @@ export function HomeScreen() {
               <button
                 type="button"
                 style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', cursor: 'pointer', background: 'transparent', border: 'none', fontFamily: 'inherit' }}
-                onClick={() => store.setScreen('history')}
+                onClick={() => store.openHistory()}
                 data-testid="open-history"
               >
                 see all →

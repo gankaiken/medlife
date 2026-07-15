@@ -30,6 +30,8 @@ async function waitForPortReleased(port, timeoutMs = 5000) {
 }
 
 let activeChild = null;
+let shuttingDown = false;
+let shutdownPromise = null;
 
 function normalizeExitCode(code, signal) {
   if (typeof code === 'number') return code;
@@ -61,6 +63,29 @@ function runNodeProcess(args) {
   return runProcess(process.execPath, args);
 }
 
+function reservePort() {
+  return new Promise((resolvePort, rejectPort) => {
+    const server = net.createServer();
+    server.unref();
+    server.once('error', rejectPort);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      const port = typeof address === 'object' && address ? address.port : null;
+      server.close((error) => {
+        if (error) {
+          rejectPort(error);
+          return;
+        }
+        if (typeof port !== 'number') {
+          rejectPort(new Error('failed to reserve port'));
+          return;
+        }
+        resolvePort(port);
+      });
+    });
+  });
+}
+
 async function main() {
   const rawArgs = process.argv.slice(2);
   const shouldBuild = rawArgs.includes('--with-build');
@@ -73,13 +98,49 @@ async function main() {
     return true;
   });
 
-  const forwardSignal = (signal) => {
-    if (activeChild && !activeChild.killed) {
-      activeChild.kill(signal);
-    }
+  let frontend = null;
+  let exitCode = 1;
+  const frontendPort = await reservePort();
+  const appUrl = `http://127.0.0.1:${frontendPort}`;
+
+  const shutdown = async (reason, requestedExitCode = exitCode) => {
+    if (shutdownPromise) return shutdownPromise;
+    shuttingDown = true;
+    shutdownPromise = (async () => {
+      if (activeChild && !activeChild.killed) {
+        try {
+          activeChild.kill('SIGTERM');
+        } catch {
+          // ignore
+        }
+      }
+      if (frontend) {
+        await frontend.stop({ preserveLogsOnFailure: true, successful: requestedExitCode === 0 });
+      }
+      const released = await waitForPortReleased(frontendPort, 15000);
+      if (!released) {
+        process.stderr.write(`[e2e] Frontend port ${frontendPort} was not released during ${reason}.\n`);
+        return 1;
+      }
+      return requestedExitCode;
+    })();
+    return shutdownPromise;
   };
-  process.once('SIGINT', forwardSignal);
-  process.once('SIGTERM', forwardSignal);
+
+  process.once('SIGINT', () => {
+    void shutdown('SIGINT', 130).then((code) => process.exit(code));
+  });
+  process.once('SIGTERM', () => {
+    void shutdown('SIGTERM', 143).then((code) => process.exit(code));
+  });
+  process.once('uncaughtException', (error) => {
+    process.stderr.write(`[e2e] uncaughtException: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    void shutdown('uncaughtException', 1).then((code) => process.exit(code));
+  });
+  process.once('unhandledRejection', (error) => {
+    process.stderr.write(`[e2e] unhandledRejection: ${error instanceof Error ? error.stack ?? error.message : String(error)}\n`);
+    void shutdown('unhandledRejection', 1).then((code) => process.exit(code));
+  });
 
   if (shouldBuild) {
     const tscExit = await runNodeProcess([
@@ -97,8 +158,7 @@ async function main() {
     if (viteExit !== 0) process.exit(viteExit);
   }
 
-  const frontend = await startManagedStaticServer({ label: 'mocked-suite', port: 4173, rootDir: 'dist' });
-  let exitCode = 1;
+  frontend = await startManagedStaticServer({ label: 'mocked-suite', port: frontendPort, rootDir: 'dist' });
   try {
     await frontend.assertHealthy('before-playwright');
     exitCode = await new Promise((resolveExit, reject) => {
@@ -112,6 +172,7 @@ async function main() {
         shell: false,
         env: {
           ...process.env,
+          PLAYWRIGHT_BASE_URL: appUrl,
           ...(forcedFailureMarker ? { MEDLIFE_E2E_FORCE_FAILURE: forcedFailureMarker } : {}),
         },
       });
@@ -127,14 +188,11 @@ async function main() {
     });
     await frontend.assertHealthy('after-playwright');
   } finally {
-    await frontend.stop({ preserveLogsOnFailure: false, successful: exitCode === 0 });
+    if (!shuttingDown) {
+      exitCode = await shutdown('normal-exit', exitCode);
+    }
   }
 
-  const portReleased = await waitForPortReleased(4173, 5000);
-  if (!portReleased) {
-    process.stderr.write('[e2e] Port 4173 was not released after runner cleanup.\n');
-    process.exit(1);
-  }
   process.exit(exitCode);
 }
 

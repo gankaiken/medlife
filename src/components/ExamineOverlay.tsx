@@ -293,8 +293,8 @@ function Vital({
     >
       <div style={{ fontSize: 14 }}>{icon}</div>
       <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: 10, fontWeight: 700 }}>
-        {label} <span style={{ opacity: 0.6 }}>{unit}</span>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink)' }}>
+        {label} <span style={{ color: 'rgba(42, 49, 53, 0.9)' }}>{unit}</span>
       </div>
     </div>
   );

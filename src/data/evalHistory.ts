@@ -1,6 +1,7 @@
 import type { ActivePatient } from '../game/types';
 import type { CaseEvaluationInput } from '../agents/customTools';
 import { classifyEvidenceIntegrity } from '../agents/disclosureReceipts.ts';
+import { normalizeHistoricalPatientSnapshot } from './historicalDebrief.ts';
 
 export type AssessmentEngine = 'ai' | 'rule_based' | 'saved' | 'unavailable';
 
@@ -81,7 +82,9 @@ function normalizeEntry(raw: unknown): EvalHistoryEntry | null {
       ? item.patientName
       : caseName;
 
-  const patientSnapshot = (item.patientSnapshot as ActivePatient | null | undefined) ?? null;
+  const patientSnapshot = normalizeHistoricalPatientSnapshot(
+    (item.patientSnapshot as ActivePatient | null | undefined) ?? null,
+  );
   const storedIntegrity = item.integrityStatus;
   const integrityStatus =
     storedIntegrity === 'live_verified' ||
@@ -182,6 +185,7 @@ export const localEvalHistoryRepository: EvalHistoryRepository = {
       integrityStatus:
         entry.integrityStatus ??
         (entry.patientSnapshot ? entry.patientSnapshot.evidenceIntegrityStatus : 'legacy_unverified'),
+      patientSnapshot: normalizeHistoricalPatientSnapshot(entry.patientSnapshot ?? null),
     };
     const next = [complete, ...readAll().filter((item) => item.id !== complete.id)];
     writeAll(next);

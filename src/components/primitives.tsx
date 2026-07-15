@@ -435,7 +435,7 @@ export function Wordmark({ size = 36, dark = false }: WordmarkProps) {
             top: size * 0.14,
             fontSize: size * 0.24,
             letterSpacing: '0.18em',
-            color: dark ? 'rgba(255,255,255,0.82)' : 'var(--ink-3)',
+            color: dark ? 'rgba(255,255,255,0.9)' : 'var(--ink-2)',
             textTransform: 'uppercase',
             fontWeight: 800,
           }}

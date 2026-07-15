@@ -20,6 +20,7 @@
     "test:e2e": "node scripts/e2e/run-e2e.mjs --with-build",
     "test:e2e:real": "node scripts/e2e/run-real-backend-e2e.mjs",
     "test:e2e:pilot-readiness": "node scripts/e2e/run-pilot-readiness-e2e.mjs",
+    "test:e2e:accessibility": "node scripts/e2e/run-pilot-readiness-e2e.mjs",
     "test:e2e:headed": "node scripts/e2e/run-e2e.mjs --with-build --headed",
     "test:e2e:debug": "node scripts/e2e/run-e2e.mjs --with-build --debug"
   },

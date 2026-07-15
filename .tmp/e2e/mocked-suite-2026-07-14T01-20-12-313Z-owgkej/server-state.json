@@ -1,0 +1,12 @@
+{
+  "runId": "mocked-suite-2026-07-14T01-20-12-313Z-owgkej",
+  "pid": 35316,
+  "parentPid": 38992,
+  "port": 4173,
+  "command": "C:\\Program Files\\nodejs\\node.exe scripts/e2e/serve-static.mjs --dir dist --port 4173",
+  "rootDir": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\dist",
+  "startedAt": "2026-07-14T01:20:12.345Z",
+  "stdoutPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\mocked-suite-2026-07-14T01-20-12-313Z-owgkej\\server.stdout.log",
+  "stderrPath": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\mocked-suite-2026-07-14T01-20-12-313Z-owgkej\\server.stderr.log",
+  "tempDir": "C:\\Users\\ganka\\Downloads\\medlife\\medlife\\.tmp\\e2e\\mocked-suite-2026-07-14T01-20-12-313Z-owgkej"
+}

@@ -3,6 +3,7 @@ import { buildApiUrl } from './debriefApi';
 import type { ActivePatient, EvidenceIntegrityStatus } from '../game/types';
 import type { EvalHistoryEntry } from '../data/evalHistory';
 import type { CaseEvaluationInput } from './customTools';
+import { normalizeHistoricalPatientSnapshot } from '../data/historicalDebrief.ts';
 
 const authUserSchema = z.object({
   id: z.string(),
@@ -324,7 +325,9 @@ export function migrateLocalAttempts(entries: EvalHistoryEntry[]): Promise<Encou
 
 export function mapServerAttemptToEvalHistoryEntry(input: EncounterAttempt): EvalHistoryEntry | null {
   const evaluation = input.evaluation as CaseEvaluationInput | undefined;
-  const snapshot = (input.completion_snapshot ?? input.draft_snapshot) as ActivePatient | undefined;
+  const snapshot = normalizeHistoricalPatientSnapshot(
+    (input.completion_snapshot ?? input.draft_snapshot) as ActivePatient | undefined,
+  );
   if (!evaluation || !snapshot?.case) return null;
   const verdict = typeof evaluation.global_rating === 'string' ? evaluation.global_rating : 'satisfactory';
   return {

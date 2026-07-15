@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -57,6 +58,13 @@ function writeLocalPreferences(next: UserPreferences): void {
   window.localStorage.setItem(LOCAL_PREFERENCES_KEY, JSON.stringify(next));
 }
 
+type PreferenceUpdate = Partial<
+  Omit<
+    UserPreferences,
+    'updated_at' | 'research_consent_version' | 'research_consented_at' | 'research_withdrawn_at' | 'deidentified_research_id'
+  >
+>;
+
 interface AuthContextValue {
   session: AuthSession | null;
   loading: boolean;
@@ -66,7 +74,7 @@ interface AuthContextValue {
   progress: LearnerProgress | null;
   preferences: UserPreferences;
   refresh: () => Promise<void>;
-  savePreferences: (input: Omit<UserPreferences, 'updated_at' | 'research_consent_version' | 'research_consented_at' | 'research_withdrawn_at' | 'deidentified_research_id'>) => Promise<void>;
+  savePreferences: (input: PreferenceUpdate) => Promise<void>;
   login: (input: { email: string; password: string }) => Promise<void>;
   register: (input: { email: string; display_name: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -114,6 +122,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const preferencesRef = useRef(preferences);
+  const preferenceSaveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const preferenceRevisionRef = useRef(0);
+
+  useEffect(() => {
+    preferencesRef.current = preferences;
+  }, [preferences]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.reducedMotion = preferences.reduced_motion_mode ? 'true' : 'false';
+  }, [preferences.reduced_motion_mode]);
 
   const refresh = async () => {
     setLoading(true);
@@ -207,9 +227,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (localEntries.length === 0) return;
     setLoading(true);
     try {
-      const imported = await migrateLocalAttempts(localEntries);
-      setServerAttempts(imported);
-      const nextProgress = await fetchLearnerProgress();
+      await migrateLocalAttempts(localEntries);
+      const [nextAttempts, nextProgress] = await Promise.all([
+        listServerEncounters(),
+        fetchLearnerProgress(),
+      ]);
+      setServerAttempts(nextAttempts);
       setProgress(nextProgress);
       setError(null);
     } finally {
@@ -217,30 +240,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const savePreferences = async (
-    input: Omit<UserPreferences, 'updated_at' | 'research_consent_version' | 'research_consented_at' | 'research_withdrawn_at' | 'deidentified_research_id'>,
-  ) => {
-    if (session?.authenticated) {
-      const updated = await updateAccountPreferences({
-        learner_stage: input.learner_stage,
-        non_3d_mode: input.non_3d_mode,
-        low_bandwidth_mode: input.low_bandwidth_mode,
-        reduced_motion_mode: input.reduced_motion_mode,
-        background_audio_enabled: input.background_audio_enabled,
-        educational_notice_acknowledged_at: input.educational_notice_acknowledged_at ?? null,
-        research_participation_status: input.research_participation_status,
-      });
-      writeLocalPreferences(updated);
-      setPreferences(updated);
-      return;
-    }
-    const localNext: UserPreferences = {
-      ...preferences,
+  const savePreferences = async (input: PreferenceUpdate) => {
+    const nextRevision = preferenceRevisionRef.current + 1;
+    preferenceRevisionRef.current = nextRevision;
+    const optimistic: UserPreferences = {
+      ...preferencesRef.current,
       ...input,
       updated_at: new Date().toISOString(),
     };
-    writeLocalPreferences(localNext);
-    setPreferences(localNext);
+    writeLocalPreferences(optimistic);
+    preferencesRef.current = optimistic;
+    setPreferences(optimistic);
+    if (session?.authenticated) {
+      const requestRevision = nextRevision;
+      const request = preferenceSaveChainRef.current.then(async () => {
+        const latest = preferencesRef.current;
+        const updated = await updateAccountPreferences({
+          learner_stage: latest.learner_stage,
+          non_3d_mode: latest.non_3d_mode,
+          low_bandwidth_mode: latest.low_bandwidth_mode,
+          reduced_motion_mode: latest.reduced_motion_mode,
+          background_audio_enabled: latest.background_audio_enabled,
+          educational_notice_acknowledged_at: latest.educational_notice_acknowledged_at ?? null,
+          research_participation_status: latest.research_participation_status,
+        });
+        if (requestRevision !== preferenceRevisionRef.current) {
+          return;
+        }
+        writeLocalPreferences(updated);
+        preferencesRef.current = updated;
+        setPreferences(updated);
+      });
+      preferenceSaveChainRef.current = request.catch(() => undefined);
+      await request;
+      return;
+    }
   };
 
   const migrationAvailable = useMemo(() => {

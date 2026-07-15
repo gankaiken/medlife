@@ -15,6 +15,8 @@ interface CaseCardProps {
 function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
   const bg = CONDITION_COLORS[c.cond] ?? 'var(--butter)';
   const governanceTone = c.status === 'approved' ? 'mint' : 'butter';
+  const cardText = 'var(--line)';
+  const cardMuted = 'var(--line)';
 
   return (
     <div
@@ -54,9 +56,9 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
         className="plush"
         style={{
           padding: 14,
-          opacity: c.attempted ? 0.92 : 1,
           position: 'relative',
           overflow: 'hidden',
+          color: cardText,
         }}
       >
         {c.attempted && c.score && (
@@ -112,17 +114,17 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
           </div>
         </div>
 
-        <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1.15 }}>{c.name}</div>
-        <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--ink-2)', marginBottom: 6 }}>
+        <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1.15, color: cardText }}>{c.name}</div>
+        <div style={{ fontWeight: 700, fontSize: 12, color: cardMuted, marginBottom: 6 }}>
           {c.age} · {c.sex}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--ink)', minHeight: 36, lineHeight: 1.3, fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: cardText, minHeight: 36, lineHeight: 1.3, fontWeight: 600 }}>
           "{c.complaint}"
         </div>
 
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
           {c.tags.slice(0, 2).map((t) => (
-            <span key={t} className="chip" style={{ fontSize: 11, padding: '3px 9px' }}>
+            <span key={t} className="chip" style={{ fontSize: 11, padding: '3px 9px', color: cardText }}>
               {t}
             </span>
           ))}
@@ -131,7 +133,7 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
           {c.status && (
             <span
               className={`chip ${governanceTone}`}
-              style={{ fontSize: 11, padding: '3px 9px' }}
+              style={{ fontSize: 11, padding: '3px 9px', color: cardText }}
               data-testid={`case-status-${c.id}`}
             >
               {c.status.replace(/_/g, ' ')}
@@ -140,7 +142,7 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
           {c.approvalStatus && (
             <span
               className="chip"
-              style={{ fontSize: 11, padding: '3px 9px' }}
+              style={{ fontSize: 11, padding: '3px 9px', color: cardText }}
               data-testid={`case-approval-${c.id}`}
             >
               {c.approvalStatus.replace(/_/g, ' ')}
@@ -149,19 +151,42 @@ function CaseCard({ c, delay = 0, avatarStyle }: CaseCardProps) {
         </div>
         {c.reviewBanner && (
           <div
-            style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: 'var(--ink-2)', lineHeight: 1.35 }}
+            style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: cardText, lineHeight: 1.35 }}
             data-testid={`case-review-banner-${c.id}`}
           >
             {c.reviewBanner}
           </div>
         )}
-        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 800, color: 'var(--ink-2)' }}>📖 {c.guideline}</div>
+        <div style={{ marginTop: 8, fontSize: 12, fontWeight: 800, color: 'var(--line)' }}>📖 {c.guideline}</div>
       </div>
     </div>
   );
 }
 
 type ClinicFilter = ClinicId | 'all' | 'red-flag';
+
+const LEARNER_STAGE_ORDER = [
+  'pre_clinical_foundation',
+  'transition_to_clinical_learning',
+  'early_clinical',
+  'core_clinical_rotation',
+  'pre_intern_preparation',
+] as const;
+
+function stageAllowsCase(
+  learnerStage: (typeof LEARNER_STAGE_ORDER)[number],
+  candidateStage: string,
+) {
+  const normalizedLearnerStage = learnerStage === 'transition_to_clinical_learning'
+    ? 'early_clinical'
+    : learnerStage;
+  const learnerIndex = LEARNER_STAGE_ORDER.indexOf(normalizedLearnerStage);
+  const candidateIndex = LEARNER_STAGE_ORDER.indexOf(candidateStage as (typeof LEARNER_STAGE_ORDER)[number]);
+  if (learnerIndex < 0 || candidateIndex < 0) {
+    return true;
+  }
+  return candidateIndex <= learnerIndex;
+}
 
 const CLINIC_ICON: Record<ClinicId, string> = {
   'all-specialties': '🌈',
@@ -212,7 +237,7 @@ export function CaseLibraryScreen() {
   const visibleGroups = useMemo<Array<[ClinicId, Case[]]>>(() => {
     const matchesStage = (item: Case) => {
       const detail = getLearnerCase(item.id);
-      return !detail || detail.pilotReadiness.candidateStage === preferences.learner_stage;
+      return !detail || stageAllowsCase(preferences.learner_stage, detail.pilotReadiness.candidateStage);
     };
     if (filter === 'red-flag') {
       const out: Array<[ClinicId, Case[]]> = [];

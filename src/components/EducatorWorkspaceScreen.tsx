@@ -79,10 +79,11 @@ export function EducatorWorkspaceScreen() {
     setBusy(true);
     setError(null);
     try {
+      const canReviewCases = session.user?.role === 'clinical_reviewer' || session.user?.role === 'curriculum_reviewer' || session.user?.role === 'pilot_admin';
       const [nextAttempts, nextAnalytics, nextCaseReviews] = await Promise.all([
         listPilotAttempts(),
         fetchPilotAnalytics(),
-        listPilotCaseReviews(caseId),
+        canReviewCases ? listPilotCaseReviews(caseId) : Promise.resolve([]),
       ]);
       setAttempts(nextAttempts);
       setAnalytics(nextAnalytics);
@@ -150,7 +151,7 @@ export function EducatorWorkspaceScreen() {
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 36px 60px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink-3)' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink-2)' }}>
               Controlled pilot review
             </div>
             <h1 style={{ fontSize: 40, lineHeight: 1.05, marginTop: 6 }}>Educator and reviewer workspace</h1>
@@ -239,12 +240,12 @@ export function EducatorWorkspaceScreen() {
                   style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }}
                 />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <select value={agreementLabel} onChange={(event) => setAgreementLabel(event.target.value as typeof agreementLabel)} style={inputStyle}>
+                  <select aria-label="Agreement with automated feedback" value={agreementLabel} onChange={(event) => setAgreementLabel(event.target.value as typeof agreementLabel)} style={inputStyle}>
                     <option value="agree">Agree with automated feedback</option>
                     <option value="partially_agree">Partially agree</option>
                     <option value="disagree">Disagree</option>
                   </select>
-                  <select value={safetyConcernLevel} onChange={(event) => setSafetyConcernLevel(event.target.value as typeof safetyConcernLevel)} style={inputStyle}>
+                  <select aria-label="Safety concern level" value={safetyConcernLevel} onChange={(event) => setSafetyConcernLevel(event.target.value as typeof safetyConcernLevel)} style={inputStyle}>
                     <option value="none">No safety concern</option>
                     <option value="minor_omission">Minor omission</option>
                     <option value="important_omission">Important omission</option>
@@ -309,7 +310,7 @@ export function EducatorWorkspaceScreen() {
                   <textarea aria-label="Communication evaluation" value={communicationEvaluation} onChange={(event) => setCommunicationEvaluation(event.target.value)} rows={2} placeholder="Communication evaluation" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
                   <textarea aria-label="Independent educator feedback" value={independentComment} onChange={(event) => setIndependentComment(event.target.value)} rows={4} placeholder="Independent educator feedback" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <select value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value as typeof confidenceLabel)} style={inputStyle}>
+                    <select aria-label="Educator confidence label" value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value as typeof confidenceLabel)} style={inputStyle}>
                       <option value="low">Low confidence</option>
                       <option value="medium">Medium confidence</option>
                       <option value="high">High confidence</option>
@@ -377,20 +378,20 @@ export function EducatorWorkspaceScreen() {
             Case review workflow
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <select value={caseId} onChange={(event) => setCaseId(event.target.value)} style={inputStyle} data-testid="case-review-case-select">
+            <select aria-label="Case review case" value={caseId} onChange={(event) => setCaseId(event.target.value)} style={inputStyle} data-testid="case-review-case-select">
               {PATIENT_CASES.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
               ))}
             </select>
-            <select value={caseReviewType} onChange={(event) => setCaseReviewType(event.target.value as typeof caseReviewType)} style={inputStyle} data-testid="case-review-type-select">
+            <select aria-label="Case review type" value={caseReviewType} onChange={(event) => setCaseReviewType(event.target.value as typeof caseReviewType)} style={inputStyle} data-testid="case-review-type-select">
               <option value="clinical">Clinical review</option>
               <option value="curriculum">Curriculum review</option>
               <option value="simulation">Simulation review</option>
               <option value="ai">AI review</option>
             </select>
-            <select value={caseDecision} onChange={(event) => setCaseDecision(event.target.value as typeof caseDecision)} style={inputStyle} data-testid="case-review-decision-select">
+            <select aria-label="Case review decision" value={caseDecision} onChange={(event) => setCaseDecision(event.target.value as typeof caseDecision)} style={inputStyle} data-testid="case-review-decision-select">
               <option value="request_revision">Request revision</option>
               <option value="candidate_public_source_mapping">Candidate public-source mapping</option>
               <option value="academic_review_required">Academic review required</option>

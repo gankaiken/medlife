@@ -287,6 +287,161 @@ def list_research_consent_events(conn: sqlite3.Connection, user_id: str) -> list
     return items
 
 
+def resolve_effective_research_consent_state(conn: sqlite3.Connection, user_id: str) -> dict[str, Any]:
+    events = list_research_consent_events(conn, user_id)
+    if events:
+        latest = events[0]
+        return {
+            "source": "event_history",
+            "event_id": latest.get("id"),
+            "status": latest.get("research_participation_status", "not_answered"),
+            "consent_version": latest.get("research_consent_version"),
+            "consented_at": latest.get("research_consented_at"),
+            "withdrawn_at": latest.get("research_withdrawn_at"),
+            "research_id": latest.get("deidentified_research_id"),
+            "effective_at": latest.get("created_at"),
+        }
+    current = get_user_preferences(conn, user_id) or {}
+    return {
+        "source": "user_preferences_fallback",
+        "event_id": None,
+        "status": current.get("research_participation_status", "not_answered"),
+        "consent_version": current.get("research_consent_version"),
+        "consented_at": current.get("research_consented_at"),
+        "withdrawn_at": current.get("research_withdrawn_at"),
+        "research_id": current.get("deidentified_research_id"),
+        "effective_at": current.get("updated_at"),
+    }
+
+
+def explain_research_export_eligibility(
+    conn: sqlite3.Connection,
+    *,
+    pilot_id: str,
+    user_id: str,
+    encounter_id: str,
+    consent_version: str | None = None,
+) -> dict[str, Any]:
+    encounter = conn.execute(
+        """
+        SELECT e.*, a.id AS assessment_id
+        FROM encounters e
+        LEFT JOIN assessments a ON a.encounter_id = e.id
+        WHERE e.id = ? AND e.user_id = ?
+        """,
+        (encounter_id, user_id),
+    ).fetchone()
+    consent = resolve_effective_research_consent_state(conn, user_id)
+    if not encounter:
+        return {
+            "eligible": False,
+            "reason": "no_eligible_attempt",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "consent": consent,
+            "details": {
+                "encounter_found": False,
+                "assessment_found": False,
+            },
+        }
+    encounter_data = row_to_dict(encounter) or {}
+    details = {
+        "encounter_found": True,
+        "encounter_owner_user_id": encounter_data.get("user_id"),
+        "encounter_status": encounter_data.get("status"),
+        "encounter_pilot_id": encounter_data.get("pilot_id"),
+        "encounter_started_at": encounter_data.get("started_at"),
+        "encounter_completed_at": encounter_data.get("completed_at"),
+        "assessment_found": bool(encounter_data.get("assessment_id")),
+        "consent_event_id": consent.get("event_id"),
+        "consent_status": consent.get("status"),
+        "consent_version": consent.get("consent_version"),
+        "consent_effective_at": consent.get("effective_at"),
+        "consent_consented_at": consent.get("consented_at"),
+        "consent_withdrawn_at": consent.get("withdrawn_at"),
+        "research_id": consent.get("research_id") or build_deidentified_research_id(user_id),
+        "pilot_membership_exists": None,
+        "pilot_membership_status": "not_implemented",
+    }
+    if str(encounter_data.get("status") or "") != "completed":
+        return {
+            "eligible": False,
+            "reason": "attempt_incomplete",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "encounter_status": encounter_data.get("status"),
+            "consent": consent,
+            "details": details,
+        }
+    if not encounter_data.get("assessment_id"):
+        return {
+            "eligible": False,
+            "reason": "no_assessment",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "consent": consent,
+            "details": details,
+        }
+    status = str(consent.get("status") or "not_answered")
+    if status != "consented":
+        return {
+            "eligible": False,
+            "reason": "consent_declined" if status == "declined" else "no_consent_record",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "consent": consent,
+            "details": details,
+        }
+    if consent_version and str(consent.get("consent_version") or "") != consent_version:
+        return {
+            "eligible": False,
+            "reason": "wrong_consent_version",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "consent": consent,
+            "details": details,
+        }
+    if consent.get("withdrawn_at"):
+        return {
+            "eligible": False,
+            "reason": "consent_withdrawn",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "consent": consent,
+            "details": details,
+        }
+    if consent.get("consented_at") and encounter_data.get("completed_at") and str(encounter_data["completed_at"]) < str(consent["consented_at"]):
+        return {
+            "eligible": False,
+            "reason": "attempt_completed_before_consent",
+            "pilot_id": pilot_id,
+            "user_id": user_id,
+            "encounter_id": encounter_id,
+            "completed_at": encounter_data.get("completed_at"),
+            "consent": consent,
+            "details": details,
+        }
+    return {
+        "eligible": True,
+        "reason": "eligible",
+        "pilot_id": pilot_id,
+        "user_id": user_id,
+        "encounter_id": encounter_id,
+        "completed_at": encounter_data.get("completed_at"),
+        "consent": {
+            **consent,
+            "research_id": consent.get("research_id") or build_deidentified_research_id(user_id),
+        },
+        "details": details,
+    }
+
+
 @with_db_lock
 def record_security_audit_event(
     conn: sqlite3.Connection,
@@ -1182,18 +1337,14 @@ def export_pilot_research_data(
             e.id AS encounter_id,
             e.case_id,
             e.case_version,
+            e.completed_at,
             e.completion_snapshot_json,
             e.status,
             e.assessment_engine,
             e.integrity_status,
             a.evaluation_json,
             u.id AS user_id,
-            up.learner_stage,
-            up.research_participation_status,
-            up.research_consent_version,
-            up.research_consented_at,
-            up.research_withdrawn_at,
-            up.deidentified_research_id
+            up.learner_stage
         FROM encounters e
         JOIN users u ON u.id = e.user_id
         JOIN user_preferences up ON up.user_id = u.id
@@ -1204,15 +1355,20 @@ def export_pilot_research_data(
     exported_rows: list[dict[str, Any]] = []
     excluded_declined = 0
     excluded_withdrawn = 0
+    consent_cache: dict[str, dict[str, Any]] = {}
     for row in rows:
-        status = str(row["research_participation_status"] or "not_answered")
+        user_id = str(row["user_id"])
+        consent = consent_cache.setdefault(user_id, resolve_effective_research_consent_state(conn, user_id))
+        status = str(consent.get("status") or "not_answered")
         if status != "consented":
             excluded_declined += 1
             continue
-        if row["research_withdrawn_at"]:
+        if consent.get("withdrawn_at"):
             excluded_withdrawn += 1
             continue
-        if consent_version and str(row["research_consent_version"] or "") != consent_version:
+        if consent_version and str(consent.get("consent_version") or "") != consent_version:
+            continue
+        if consent.get("consented_at") and row["completed_at"] and str(row["completed_at"]) < str(consent["consented_at"]):
             continue
         assessment = json_loads(row["evaluation_json"]) or {}
         snapshot = json_loads(row["completion_snapshot_json"]) or {}
@@ -1221,14 +1377,14 @@ def export_pilot_research_data(
         latest_review = get_latest_attempt_review(conn, str(row["encounter_id"]))
         exported_rows.append(
             {
-                "research_id": row["deidentified_research_id"],
+                "research_id": consent.get("research_id") or build_deidentified_research_id(user_id),
                 "pilot_id": pilot_id,
                 "encounter_id": row["encounter_id"],
                 "case_id": row["case_id"],
                 "case_version": row["case_version"],
                 "curriculum_mapping_version": ((case_snapshot.get("curriculumAlignment") or {}).get("mappingVersion")),
                 "learner_stage": row["learner_stage"],
-                "consent_version": row["research_consent_version"],
+                "consent_version": consent.get("consent_version"),
                 "attempt_metrics": {
                     "integrity_status": row["integrity_status"],
                     "assessment_engine": row["assessment_engine"],

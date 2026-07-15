@@ -105,6 +105,11 @@ test('static server serves index and SPA fallback, then releases the port when s
     assert.equal(fallbackResponse.status, 200);
     assert.match(fallbackText, /medlife fixture/i);
 
+    const historicalRouteResponse = await fetch(`http://127.0.0.1:${port}/history/enc-test-001/debrief`);
+    const historicalRouteText = await historicalRouteResponse.text();
+    assert.equal(historicalRouteResponse.status, 200);
+    assert.match(historicalRouteText, /medlife fixture/i);
+
     child.stdin.end();
     const exitCode = await new Promise<number | null>((resolveExit) => {
       child.once('exit', (code) => resolveExit(code));

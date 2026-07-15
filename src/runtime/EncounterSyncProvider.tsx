@@ -282,6 +282,7 @@ export function EncounterSyncProvider({ children }: { children: ReactNode }) {
       setSyncState(queueRef.current.length > 0 ? 'pending_sync' : 'idle');
       return;
     }
+    let flushFailed = false;
     flushingRef.current = true;
     setSyncState(queueRef.current.length > 0 ? 'saving' : 'idle');
     try {
@@ -322,9 +323,13 @@ export function EncounterSyncProvider({ children }: { children: ReactNode }) {
       setSyncState('saved');
       await refresh();
     } catch {
+      flushFailed = true;
       setSyncState('pending_sync');
     } finally {
       flushingRef.current = false;
+      if (!flushFailed && queueRef.current.length > 0 && session?.authenticated && backendReachable) {
+        void flushQueue();
+      }
     }
   };
 

@@ -182,35 +182,16 @@ export function HistoryScreen() {
                     boxShadow: '0 2px 0 var(--line)',
                   }}
                 />
-                <div
+                <a
                   className="tap"
                   onClick={() => {
-                    const server = session?.authenticated
-                      ? serverAttempts.find((attempt) => String(attempt.id) === item.id)
-                      : null;
-                    const mapped = server ? mapServerAttemptToEvalHistoryEntry(server) : item;
-                    if (mapped) {
-                      saveEvalHistory(mapped);
-                      store.viewEvalHistory(mapped.id);
+                    if (!session?.authenticated) {
+                      saveEvalHistory(item);
                     }
                   }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.preventDefault();
-                      const server = session?.authenticated
-                        ? serverAttempts.find((attempt) => String(attempt.id) === item.id)
-                        : null;
-                      const mapped = server ? mapServerAttemptToEvalHistoryEntry(server) : item;
-                      if (mapped) {
-                        saveEvalHistory(mapped);
-                        store.viewEvalHistory(mapped.id);
-                      }
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
+                  href={`/history/${encodeURIComponent(item.id)}/debrief`}
                   aria-label={`Open history attempt ${item.caseName}`}
-                  style={{ cursor: 'pointer' }}
+                  style={{ cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, textAlign: 'left', font: 'inherit', color: 'inherit', textDecoration: 'none' }}
                   data-testid={`history-attempt-${item.id}`}
                 >
                   <div style={{ fontWeight: 900, fontSize: 15 }}>
@@ -219,7 +200,7 @@ export function HistoryScreen() {
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
                     {item.diagnosisLabel}
                   </div>
-                </div>
+                </a>
                 <span className="chip" style={{ background: VERDICT_COLOR[item.verdict] ?? 'white', justifySelf: 'start' }}>
                   {item.verdict}
                 </span>

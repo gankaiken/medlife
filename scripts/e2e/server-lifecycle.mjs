@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import net from 'node:net';
@@ -77,12 +77,106 @@ function mirrorStream(stream, targetPath, targetWriter) {
   });
 }
 
+function safeLabel(label) {
+  return String(label).replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+}
+
+function readJsonIfPresent(filePath) {
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function removeOwnedActiveState(activeStatePath, { runId, pid, port }) {
+  if (!existsSync(activeStatePath)) return;
+  const activeState = readJsonIfPresent(activeStatePath);
+  if (!activeState) {
+    rmSync(activeStatePath, { force: true });
+    return;
+  }
+  const sameRun = activeState.runId === runId;
+  const sameOwner = activeState.pid === pid && activeState.port === port;
+  if (sameRun || sameOwner) {
+    rmSync(activeStatePath, { force: true });
+  }
+}
+
+function findListeningPid(port) {
+  if (process.platform !== 'win32') return null;
+  try {
+    const output = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
+    const lines = output.split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^\s*TCP\s+127\.0\.0\.1:(\d+)\s+\S+\s+LISTENING\s+(\d+)\s*$/i);
+      if (match && Number(match[1]) === port) {
+        return Number(match[2]);
+      }
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function cleanupStaleOwner(activeStatePath, port) {
+  const stale = readJsonIfPresent(activeStatePath);
+  if (!stale || typeof stale.pid !== 'number' || typeof stale.port !== 'number') return;
+  if (stale.port !== port) {
+    if (typeof stale.tempDir === 'string' && stale.tempDir) {
+      rmSync(stale.tempDir, { recursive: true, force: true });
+    }
+    rmSync(activeStatePath, { force: true });
+    return;
+  }
+  const listeningPid = findListeningPid(port);
+  if (listeningPid === null) {
+    if (typeof stale.tempDir === 'string' && stale.tempDir) {
+      rmSync(stale.tempDir, { recursive: true, force: true });
+    }
+    rmSync(activeStatePath, { force: true });
+    return;
+  }
+  if (listeningPid !== stale.pid) {
+    throw new Error(
+      `Port ${port} is already occupied by pid=${listeningPid} and does not match stale owned pid=${stale.pid}. ` +
+        `Active state path=${activeStatePath}`,
+    );
+  }
+  try {
+    process.kill(stale.pid, 'SIGTERM');
+  } catch {
+    // already exiting
+  }
+  const released = await waitForPortReleased(port, 15000);
+  if (!released) {
+    try {
+      process.kill(stale.pid);
+    } catch {
+      // already exiting
+    }
+    const hardReleased = await waitForPortReleased(port, 15000);
+    if (!hardReleased) {
+      throw new Error(`Port ${port} remained occupied by stale owned pid=${stale.pid} after cleanup attempt.`);
+    }
+  }
+  if (typeof stale.tempDir === 'string' && stale.tempDir) {
+    rmSync(stale.tempDir, { recursive: true, force: true });
+  }
+  rmSync(activeStatePath, { force: true });
+}
+
 export async function startManagedStaticServer({ label, port = 4173, rootDir = 'dist', extraEnv = {} }) {
   const runId = makeRunId(label);
+  const normalizedLabel = safeLabel(label);
   const tempDir = resolve('.tmp', 'e2e', runId);
+  const activeStatePath = resolve('.tmp', 'e2e', `${normalizedLabel}.active.json`);
   const statePath = resolve(tempDir, 'server-state.json');
   const stdoutPath = resolve(tempDir, 'server.stdout.log');
   const stderrPath = resolve(tempDir, 'server.stderr.log');
+  await cleanupStaleOwner(activeStatePath, port);
   mkdirSync(tempDir, { recursive: true });
 
   const child = spawn(
@@ -96,7 +190,11 @@ export async function startManagedStaticServer({ label, port = 4173, rootDir = '
         ...process.env,
         ...extraEnv,
         MEDLIFE_DISABLE_STDIN_SHUTDOWN: '1',
-        MEDLIFE_DISABLE_PARENT_WATCHDOG: '1',
+        MEDLIFE_MANAGED_RUN_ID: runId,
+        MEDLIFE_MANAGED_PORT: String(port),
+        MEDLIFE_MANAGED_STATE_PATH: statePath,
+        MEDLIFE_MANAGED_ACTIVE_STATE_PATH: activeStatePath,
+        MEDLIFE_MANAGED_TEMP_DIR: tempDir,
       },
     },
   );
@@ -113,8 +211,28 @@ export async function startManagedStaticServer({ label, port = 4173, rootDir = '
         rootDir: resolve(rootDir),
         startedAt: new Date().toISOString(),
         stdoutPath,
+      stderrPath,
+      tempDir,
+      activeStatePath,
+    },
+    null,
+    2,
+  ),
+  'utf8',
+  );
+  writeFileSync(
+    activeStatePath,
+    JSON.stringify(
+      {
+        runId,
+        pid: child.pid,
+        parentPid: process.pid,
+        port,
+        statePath,
+        stdoutPath,
         stderrPath,
         tempDir,
+        startedAt: new Date().toISOString(),
       },
       null,
       2,
@@ -129,11 +247,15 @@ export async function startManagedStaticServer({ label, port = 4173, rootDir = '
   let expectedShutdown = false;
   child.once('exit', (code, signal) => {
     exitInfo = { code, signal, at: new Date().toISOString() };
-    appendFileSync(
-      stderrPath,
-      `\n[managed-static-server] exit code=${String(code)} signal=${String(signal)} at=${exitInfo.at}\n`,
-      'utf8',
-    );
+    try {
+      appendFileSync(
+        stderrPath,
+        `\n[managed-static-server] exit code=${String(code)} signal=${String(signal)} at=${exitInfo.at}\n`,
+        'utf8',
+      );
+    } catch {
+      // The caller may already have removed the temp directory during shutdown.
+    }
   });
 
   await waitForPortOpen(port, 15000);
@@ -147,6 +269,7 @@ export async function startManagedStaticServer({ label, port = 4173, rootDir = '
     port,
     tempDir,
     statePath,
+    activeStatePath,
     stdoutPath,
     stderrPath,
     pid: child.pid,
@@ -202,6 +325,8 @@ export async function startManagedStaticServer({ label, port = 4173, rootDir = '
         await waitForPortReleased(port, 15000);
       }
       rmSync(statePath, { force: true });
+      removeOwnedActiveState(activeStatePath, { runId, pid: child.pid, port });
+      rmSync(activeStatePath, { force: true });
       if (successful && !preserveLogsOnFailure) {
         rmSync(tempDir, { recursive: true, force: true });
       }

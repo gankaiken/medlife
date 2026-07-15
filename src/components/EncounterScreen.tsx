@@ -358,7 +358,7 @@ export function EncounterScreen() {
 
   if (accessibleMode) {
     return (
-      <div className="screen paper" style={{ overflowY: 'auto' }}>
+      <div className="screen paper" style={{ overflowY: 'auto' }} data-testid="encounter-mode-non-3d">
         <TopBar here={4} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter']} />
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '28px 36px 60px' }}>
           <div className="plush-lg" style={{ padding: 18, background: 'var(--cream-2)', marginBottom: 18 }}>
@@ -376,9 +376,9 @@ export function EncounterScreen() {
               <span className="chip">{preferences.low_bandwidth_mode ? 'Low bandwidth' : 'Standard bandwidth'}</span>
               <span className="chip">{preferences.reduced_motion_mode ? 'Reduced motion' : 'Animation allowed'}</span>
             </div>
-            {preferences.low_bandwidth_mode && (
+            {(preferences.low_bandwidth_mode || preferences.non_3d_mode) && (
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 8 }} data-testid="low-bandwidth-encounter-note">
-                low-bandwidth preference - optimisation incomplete
+                accessibility-mode optimisation incomplete
               </div>
             )}
           </div>
@@ -445,7 +445,7 @@ export function EncounterScreen() {
   }
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }}>
+    <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }} data-testid="encounter-mode-3d">
       <TopBar here={4} steps={['Polyclinic', 'GP', 'Case', 'Brief', 'Encounter']} />
 
       <div

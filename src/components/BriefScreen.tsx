@@ -271,8 +271,8 @@ export function BriefScreen() {
                 >
                   <div style={{ fontSize: 18 }}>{v.icon}</div>
                   <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>{v.value}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700 }}>
-                    {v.label} <span style={{ opacity: 0.6 }}>{v.unit}</span>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink)' }}>
+                    {v.label} <span style={{ color: 'rgba(42, 49, 53, 0.9)' }}>{v.unit}</span>
                   </div>
                 </div>
               ))}
