@@ -44,7 +44,7 @@ function Door({ label, sub, color, doorColor, available, locked, tags = [], onOp
         >
           <div
             style={{
-              background: 'linear-gradient(180deg, rgba(255,255,255,0.95) 0%, #d9eef7 100%)',
+              background: 'linear-gradient(180deg, rgba(252,250,245,0.96) 0%, rgba(226, 235, 228, 0.98) 100%)',
               border: '4px solid var(--line)',
               borderRadius: 18,
               height: 110,
@@ -65,7 +65,7 @@ function Door({ label, sub, color, doorColor, available, locked, tags = [], onOp
                 style={{ position: 'absolute', bottom: 8, left: 0, right: 0, textAlign: 'center' }}
                 className="floaty"
               >
-                <Doodle kind="cross" size={30} color="#4f8ea0" />
+                <Doodle kind="cross" size={30} color="var(--mint-deep)" />
               </div>
             )}
             {locked && (
@@ -158,7 +158,7 @@ function Plant({ flip = false }: { flip?: boolean }) {
 
 export function ModeSelectScreen() {
   return (
-    <div className="screen" style={{ background: 'var(--cream)' }}>
+    <div className="screen platform-screen">
       <TopBar here={0} showProfile />
 
       <div style={{ position: 'relative', height: 'calc(100vh - 67px)' }}>
@@ -170,19 +170,19 @@ export function ModeSelectScreen() {
           <defs>
             <pattern id="floortile" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
               <rect width="80" height="80" fill="#eaf1f3" />
-              <path d="M 0 80 L 80 0" stroke="#d1dde1" strokeWidth="2" />
+              <path d="M 0 80 L 80 0" stroke="#d3d7cc" strokeWidth="2" />
             </pattern>
           </defs>
-          <rect x="0" y="0" width="1200" height="380" fill="#eef7f9" />
-          <rect x="0" y="370" width="1200" height="14" fill="#b9d4dc" stroke="var(--line)" strokeWidth="3" />
+          <rect x="0" y="0" width="1200" height="380" fill="#f3eee5" />
+          <rect x="0" y="370" width="1200" height="14" fill="#cfc4b2" stroke="var(--line)" strokeWidth="3" />
           <path
             d="M 0 700 L 1200 700 L 900 384 L 300 384 Z"
             fill="url(#floortile)"
             stroke="var(--line)"
             strokeWidth="4"
           />
-          <line x1="600" y1="384" x2="0" y2="700" stroke="#bfd1d7" strokeWidth="2" strokeDasharray="6 8" />
-          <line x1="600" y1="384" x2="1200" y2="700" stroke="#bfd1d7" strokeWidth="2" strokeDasharray="6 8" />
+          <line x1="600" y1="384" x2="0" y2="700" stroke="#b5b6ac" strokeWidth="2" strokeDasharray="6 8" />
+          <line x1="600" y1="384" x2="1200" y2="700" stroke="#b5b6ac" strokeWidth="2" strokeDasharray="6 8" />
         </svg>
 
         <div
@@ -221,7 +221,7 @@ export function ModeSelectScreen() {
             label="Polyclinics"
             sub="Outpatient clerkship practice"
             color="var(--mint)"
-            doorColor="#d6efe8"
+            doorColor="#dce9de"
             available
             tags={['Open now', 'History + plan', 'Student friendly']}
             onOpen={() => store.setScreen('gpRoom')}
@@ -230,7 +230,7 @@ export function ModeSelectScreen() {
             label="Diagnostics"
             sub="Lab, imaging, escalation"
             color="var(--sky)"
-            doorColor="#d8ecf8"
+            doorColor="#dde2da"
             locked
             tags={['Coming soon']}
           />
@@ -238,7 +238,7 @@ export function ModeSelectScreen() {
             label="Emergency"
             sub="Triage and resus flow"
             color="var(--rose)"
-            doorColor="#f5d3da"
+            doorColor="#ead7d4"
             locked
             tags={['Coming soon']}
           />

@@ -70,12 +70,12 @@ export function ExamineOverlay({ onClose, onDispatch }: Props) {
         position: 'fixed',
         inset: 0,
         zIndex: 50,
-        background: 'rgba(43,30,22,0.40)',
-        backdropFilter: 'blur(2px)',
+        background: 'rgba(8,20,28,0.46)',
+        backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'center',
-        padding: '36px 36px 24px',
+        padding: '28px 28px 24px',
         overflowY: 'auto',
       }}
       onClick={(e) => {
@@ -83,9 +83,9 @@ export function ExamineOverlay({ onClose, onDispatch }: Props) {
       }}
     >
       <div
-        className="plush-lg popin"
+        className="plush-lg popin encounter-overlay-shell"
         style={{
-          width: 'min(960px, 100%)',
+          width: 'min(1120px, 100%)',
           background: 'var(--paper)',
           padding: 0,
           overflow: 'hidden',

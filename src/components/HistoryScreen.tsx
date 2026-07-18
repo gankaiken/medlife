@@ -71,45 +71,37 @@ export function HistoryScreen() {
   }, [history]);
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)', overflowY: 'auto' }}>
+    <div className="screen platform-screen" style={{ overflowY: 'auto' }}>
       <TopBar here={1} steps={['Profile', 'History']} />
-      <div style={{ padding: '28px 36px', maxWidth: 1080, margin: '0 auto' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'baseline',
-            justifyContent: 'space-between',
-            marginBottom: 18,
-            gap: 16,
-            flexWrap: 'wrap',
-          }}
-        >
-          <div>
-            <h1 style={{ fontSize: 36, marginBottom: 4 }}>Training history</h1>
-            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink-2)' }}>
-              {session?.authenticated
-                ? 'Signed-in history comes from server-stored learner records. Anonymous/local attempts stay separate until you import them.'
-                : 'Every completed attempt saved from the shared local review log used by Home and Debrief.'}
-            </div>
+      <div className="platform-container" style={{ maxWidth: 1180 }}>
+        <div className="platform-hero" style={{ marginBottom: 18 }}>
+          <div className="platform-label">History and review</div>
+          <h1 className="platform-title" style={{ fontSize: 44, marginBottom: 4 }}>Training history</h1>
+          <div className="platform-copy">
+            {session?.authenticated
+              ? 'Signed-in history comes from server-stored learner records. Anonymous local attempts remain separate until you import them.'
+              : 'Every completed attempt saved from the shared local review log used by Home and Debrief.'}
           </div>
-          <button
-            type="button"
-            className="btn-plush ghost"
-            style={{ fontSize: 13, padding: '8px 14px' }}
-            onClick={() => store.setScreen('home')}
-            data-testid="history-back-home"
-          >
-            Back to dashboard
-          </button>
+          <div style={{ marginTop: 16 }}>
+            <button
+              type="button"
+              className="btn-plush ghost"
+              style={{ fontSize: 13, padding: '8px 14px' }}
+              onClick={() => store.setScreen('home')}
+              data-testid="history-back-home"
+            >
+              Back to dashboard
+            </button>
+          </div>
         </div>
 
         {healthMessage && (
           <div
-            className="plush"
+            className="glass-card"
             style={{
               padding: 14,
               marginBottom: 18,
-              background: healthStatus === 'corrupted' ? 'var(--rose)' : 'var(--butter)',
+              background: healthStatus === 'corrupted' ? 'var(--danger)' : 'var(--warning)',
             }}
             data-testid="history-recovery-banner"
           >
@@ -128,13 +120,13 @@ export function HistoryScreen() {
         </div>
 
         {session?.authenticated && serverAttempts.some((item) => item.status === 'in_progress') && (
-          <div className="plush" style={{ padding: 16, marginBottom: 18 }} data-testid="history-in-progress">
-            <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>
-              In-progress encounters
+          <div className="glass-card" style={{ padding: 18, marginBottom: 18 }} data-testid="history-in-progress">
+            <div className="section-heading">
+              <div className="title">In-progress encounters</div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="clinical-list">
               {serverAttempts.filter((item) => item.status === 'in_progress').map((item) => (
-                <div key={String(item.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: 'var(--cream)', border: '2.5px solid var(--line)', borderRadius: 12, padding: '10px 12px' }}>
+                <div key={String(item.id)} className="clinical-row" style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                   <div>
                     <div style={{ fontWeight: 800 }}>{String(item.case_name ?? item.case_id)}</div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>{formatDate(String(item.last_activity_at))}</div>
@@ -149,93 +141,91 @@ export function HistoryScreen() {
         )}
 
         {history.length === 0 ? (
-          <div className="plush" style={{ padding: 24, textAlign: 'center' }} data-testid="history-empty">
-            <div style={{ fontSize: 20, fontWeight: 900 }}>No saved attempts yet</div>
-            <div style={{ marginTop: 6, fontSize: 14, fontWeight: 600, color: 'var(--ink-2)' }}>
+          <div className="glass-card" style={{ padding: 28, textAlign: 'center' }} data-testid="history-empty">
+            <div style={{ fontSize: 22, fontWeight: 900 }}>No saved attempts yet</div>
+            <div style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: 'var(--ink-2)' }}>
               Finish a case and your debrief will appear here automatically.
             </div>
           </div>
         ) : (
-          <div className="plush" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }} data-testid="history-attempts">
-            {history.map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '46px 1fr 150px 160px 30px',
-                  gap: 12,
-                  alignItems: 'center',
-                  padding: '10px 12px',
-                  background: 'white',
-                  border: '2.5px solid var(--line)',
-                  borderRadius: 14,
-                  boxShadow: '0 2px 0 var(--line)',
-                }}
-              >
+          <div className="glass-card" style={{ padding: 18 }} data-testid="history-attempts">
+            <div className="clinical-list">
+              {history.map((item) => (
                 <div
+                  key={item.id}
+                  className="clinical-row"
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: '50%',
-                    background: VERDICT_COLOR[item.verdict] ?? 'var(--cream-2)',
-                    border: '2.5px solid var(--line)',
-                    boxShadow: '0 2px 0 var(--line)',
+                    display: 'grid',
+                    gridTemplateColumns: '46px 1fr 150px 160px 30px',
+                    gap: 12,
+                    alignItems: 'center',
+                    padding: '12px 14px',
                   }}
-                />
-                <a
-                  className="tap"
-                  onClick={() => {
-                    if (!session?.authenticated) {
-                      saveEvalHistory(item);
-                    }
-                  }}
-                  href={`/history/${encodeURIComponent(item.id)}/debrief`}
-                  aria-label={`Open history attempt ${item.caseName}`}
-                  style={{ cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, textAlign: 'left', font: 'inherit', color: 'inherit', textDecoration: 'none' }}
-                  data-testid={`history-attempt-${item.id}`}
                 >
-                  <div style={{ fontWeight: 900, fontSize: 15 }}>
-                    {item.caseName} <span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>· {item.caseAge}{item.caseGender}</span>
-                  </div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
-                    {item.diagnosisLabel}
-                  </div>
-                </a>
-                <span className="chip" style={{ background: VERDICT_COLOR[item.verdict] ?? 'white', justifySelf: 'start' }}>
-                  {item.verdict}
-                </span>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 800 }}>{ENGINE_LABEL[item.engine]}</div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-2)' }}>{formatDate(item.savedAt)}</div>
-                </div>
-                <button
-                  type="button"
-                  title="Delete attempt"
-                  onClick={() => {
-                    void (async () => {
-                      if (session?.authenticated) {
-                        await deleteServerEncounter(item.id);
-                        await refreshAuth();
-                      } else {
-                        deleteEvalHistory(item.id);
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: '50%',
+                      background: VERDICT_COLOR[item.verdict] ?? 'var(--cream-2)',
+                      border: '2px solid rgba(22,53,65,0.16)',
+                    }}
+                  />
+                  <a
+                    className="tap"
+                    onClick={() => {
+                      if (!session?.authenticated) {
+                        saveEvalHistory(item);
                       }
-                      refresh();
-                    })();
-                  }}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--ink-2)',
-                    cursor: 'pointer',
-                    fontSize: 16,
-                    fontWeight: 900,
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+                    }}
+                    href={`/history/${encodeURIComponent(item.id)}/debrief`}
+                    aria-label={`Open history attempt ${item.caseName}`}
+                    style={{ cursor: 'pointer', background: 'transparent', border: 'none', padding: 0, textAlign: 'left', font: 'inherit', color: 'inherit', textDecoration: 'none' }}
+                    data-testid={`history-attempt-${item.id}`}
+                  >
+                    <div style={{ fontWeight: 900, fontSize: 15 }}>
+                      {item.caseName} <span style={{ fontWeight: 700, color: 'var(--ink-2)' }}>· {item.caseAge}{item.caseGender}</span>
+                    </div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
+                      {item.diagnosisLabel}
+                    </div>
+                  </a>
+                  <span className="chip" style={{ background: VERDICT_COLOR[item.verdict] ?? 'white', justifySelf: 'start' }}>
+                    {item.verdict}
+                  </span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 800 }}>{ENGINE_LABEL[item.engine]}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ink-2)' }}>{formatDate(item.savedAt)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    title="Delete attempt"
+                    onClick={() => {
+                      void (async () => {
+                        if (session?.authenticated) {
+                          await deleteServerEncounter(item.id);
+                          await refreshAuth();
+                        } else {
+                          deleteEvalHistory(item.id);
+                        }
+                        refresh();
+                      })();
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--ink-2)',
+                      cursor: 'pointer',
+                      fontSize: 16,
+                      fontWeight: 900,
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>

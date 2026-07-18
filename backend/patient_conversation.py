@@ -9,6 +9,7 @@ from typing import Any, Literal
 from fastapi import HTTPException
 from pydantic import BaseModel, Field, ValidationError
 
+from .llm_provider import generate_text_with_client
 from .patient_cases import get_case_status, get_patient_case, get_patient_visible_case
 
 MAX_LEARNER_MESSAGE_CHARS = 500
@@ -422,7 +423,7 @@ def generate_patient_response(
     case: Any,
 ) -> PatientRespondResponseModel:
     if client is None:
-        raise RuntimeError("anthropic client not configured")
+        raise RuntimeError("llm client not configured")
 
     learner_message = req.learner_message.strip()
     hidden_request = classify_hidden_request(learner_message)
@@ -434,22 +435,19 @@ def generate_patient_response(
     user_message = build_patient_user_message(req, visible_case, eligible_facts)
 
     def _request():
-        return client.messages.create(
+        return generate_text_with_client(
+            client,
             model=model_name,
             max_tokens=500,
             temperature=0.2,
             system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            user=user_message,
         )
 
     last_error: Exception | None = None
     for _ in range(PATIENT_MAX_RETRIES + 1):
         try:
-            message = _run_with_timeout(_request, PATIENT_REQUEST_TIMEOUT_SECONDS)
-            text_blocks = [
-                block.text for block in getattr(message, "content", []) if getattr(block, "type", "") == "text"
-            ]
-            raw = "\n".join(text_blocks).strip()
+            raw = _run_with_timeout(_request, PATIENT_REQUEST_TIMEOUT_SECONDS).strip()
             if not raw:
                 raise ValueError("empty patient response")
             return validate_provider_response(raw, req, case, eligible_facts)

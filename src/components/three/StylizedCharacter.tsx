@@ -50,17 +50,17 @@ function hashSeed(s: string | undefined): number {
 
 function palette(age: number, gender: 'M' | 'F', seed: string | undefined, doctor: boolean) {
   const h = hashSeed(seed);
-  const skinTones = ['#f1c9a0', '#e4b58c', '#c89068', '#a67548', '#7a5234'];
+  const skinTones = ['#f2cfab', '#e7bb94', '#cb946b', '#a97853', '#7d573f'];
   const hairTones =
     age > 60
-      ? ['#c9c4ba', '#a9a49a', '#8a8680']
-      : ['#2a1b10', '#4a2f18', '#8a5a2a', '#c4945a', '#1a1a1a'];
+      ? ['#d3d0c8', '#aeb0b2', '#8e8c89']
+      : ['#20150f', '#3d291d', '#745038', '#b88858', '#14171a'];
   const shirtTones = doctor
-    ? ['#ffffff']
+    ? ['#f7fbfd']
     : gender === 'F'
-      ? ['#b8486a', '#6a8acc', '#d4954a', '#4a8a6a', '#8a5a9a']
-      : ['#4a6a8a', '#8a5a3a', '#3a4a5a', '#6a4a3a', '#5a7a4a'];
-  const pantsTones = doctor ? ['#3a4a5a'] : ['#2a2a3a', '#4a3a2a', '#5a4030', '#3a3a40'];
+      ? ['#6e8fb2', '#4f8f85', '#9d6fa8', '#cf8d63', '#8a709e']
+      : ['#4f7698', '#5d7f8a', '#59667a', '#7b6656', '#62785e'];
+  const pantsTones = doctor ? ['#3f5664'] : ['#2f3543', '#425061', '#5d4c42', '#3d454e'];
   return {
     skin: skinTones[h % skinTones.length],
     hair: hairTones[(h >> 3) % hairTones.length],
@@ -265,7 +265,7 @@ export function StylizedCharacter({
           smoothness={3}
           castShadow
         >
-          <meshStandardMaterial color={col.pants} roughness={0.85} />
+          <meshStandardMaterial color={col.pants} roughness={0.72} metalness={0.06} />
         </RoundedBox>
 
         {/* torso — waist-taper for females, width & depth from body type */}
@@ -280,7 +280,7 @@ export function StylizedCharacter({
           position={[0, 0.32, 0]}
           castShadow
         >
-          <meshStandardMaterial color={col.shirt} roughness={0.8} />
+          <meshStandardMaterial color={col.shirt} roughness={0.62} metalness={0.04} />
         </RoundedBox>
 
         {/* Heavy build is conveyed via torso/hip width + depth multipliers
@@ -298,7 +298,7 @@ export function StylizedCharacter({
               position={[0, 0.22, 0.005]}
               castShadow
             >
-              <meshStandardMaterial color="#f7f4ee" roughness={0.82} />
+              <meshStandardMaterial color="#f7fafd" roughness={0.5} metalness={0.02} />
             </RoundedBox>
             <mesh position={[0, 0.36, 0.135]}>
               <boxGeometry args={[0.012, 0.4, 0.004]} />
@@ -330,13 +330,13 @@ export function StylizedCharacter({
         {/* neck */}
         <mesh position={[0, 0.62, 0]} castShadow>
           <cylinderGeometry args={[0.055, 0.06, 0.08, 14]} />
-          <meshStandardMaterial color={col.skin} roughness={0.78} />
+          <meshStandardMaterial color={col.skin} roughness={0.58} metalness={0.02} />
         </mesh>
 
         {/* ======= HEAD ======= */}
         <group ref={headRef} position={[0, 0.77, 0]}>
           <RoundedBox args={[0.2, 0.24, 0.2]} radius={0.08} smoothness={4} castShadow>
-            <meshStandardMaterial color={col.skin} roughness={0.72} />
+            <meshStandardMaterial color={col.skin} roughness={0.52} metalness={0.02} />
           </RoundedBox>
 
           {/* hair silhouettes — sphere-based skullcaps that hug the cranium
@@ -449,14 +449,16 @@ export function StylizedCharacter({
 
           {/* eyes — scaled Y for fatigued/pain (squint) */}
           {[-0.045, 0.045].map((dx, i) => (
-            <mesh
-              key={`eye-${i}`}
-              position={[dx, 0.01, 0.102]}
-              scale={[1, eyeScaleY, 1]}
-            >
-              <sphereGeometry args={[0.016, 10, 8]} />
-              <meshStandardMaterial color="#1a1410" />
-            </mesh>
+            <group key={`eye-${i}`} position={[dx, 0.01, 0.102]} scale={[1, eyeScaleY, 1]}>
+              <mesh>
+                <sphereGeometry args={[0.018, 10, 8]} />
+                <meshStandardMaterial color="#fdfefe" roughness={0.2} metalness={0.04} />
+              </mesh>
+              <mesh position={[0, 0, 0.01]}>
+                <sphereGeometry args={[0.0095, 10, 8]} />
+                <meshStandardMaterial color="#17242e" roughness={0.28} />
+              </mesh>
+            </group>
           ))}
 
           {/* eyebrows — angled inward for pain/anxious, outward for fatigued */}

@@ -24,7 +24,7 @@ const CARDS: Card[] = [
     title: 'How it works.',
     body:
       'Pick a clinic. The next patient is called in. You move through the guided learner flow, order labs, prescribe, counsel, and refer. At the end, Medlife shows either an AI debrief when the backend is configured or a local rule-based assessment when it is not. Five to eight minutes per case.',
-    icon: <Doodle kind="cross" size={140} color="#F47A92" />,
+    icon: <Doodle kind="cross" size={140} color="var(--peach-deep)" />,
     tag: '02 · the loop',
   },
   {
@@ -32,7 +32,7 @@ const CARDS: Card[] = [
     title: "Who it's for.",
     body:
       'For medical students, residents, and doctors preparing for OSCE-style exams. This is a training simulator, not a clinical tool. Never used to give real medical advice.',
-    icon: <Doodle kind="heart" size={140} color="#F47A92" />,
+    icon: <Doodle kind="heart" size={140} color="var(--rose-deep)" />,
     tag: '03 · safety line',
   },
 ];
@@ -42,12 +42,12 @@ export function OnboardingScreen() {
   const card = CARDS[step];
 
   return (
-    <div className="screen bg-cream-2" style={{ position: 'relative' }}>
+    <div className="screen platform-screen" style={{ position: 'relative' }}>
       <DoodleScatter
         items={[
-          { kind: 'sparkle', x: 60, y: 70, size: 28, color: '#FFD86B' },
-          { kind: 'sparkle', x: '85%', y: 130, size: 24, color: '#5AB7F2' },
-          { kind: 'star', x: 80, y: 580, size: 32, color: '#FFD86B', anim: 'wobble' },
+          { kind: 'sparkle', x: 60, y: 70, size: 28, color: 'var(--butter)' },
+          { kind: 'sparkle', x: '85%', y: 130, size: 24, color: 'var(--mint)' },
+          { kind: 'star', x: 80, y: 580, size: 32, color: 'var(--butter)', anim: 'wobble' },
           { kind: 'pill', x: '88%', y: 600, size: 60, anim: 'wobble' },
         ]}
       />
@@ -70,7 +70,7 @@ export function OnboardingScreen() {
               width: i === step ? 32 : 12,
               height: 12,
               borderRadius: 8,
-              background: i === step ? 'var(--peach-deep)' : 'white',
+              background: i === step ? 'var(--peach-deep)' : 'rgba(255,255,255,0.9)',
               border: '2.5px solid var(--line)',
               boxShadow: '0 2px 0 var(--line)',
               transition: 'width 200ms cubic-bezier(.5,1.7,.4,1)',
@@ -92,7 +92,13 @@ export function OnboardingScreen() {
         <div
           className="plush-lg popin"
           key={step}
-          style={{ width: 720, padding: 40, background: card.bg, position: 'relative', transform: 'rotate(-1deg)' }}
+          style={{
+            width: 720,
+            padding: 40,
+            background: `linear-gradient(180deg, ${card.bg} 0%, rgba(252, 250, 245, 0.96) 100%)`,
+            position: 'relative',
+            transform: 'rotate(-1deg)',
+          }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
             <div className="floaty" style={{ flexShrink: 0 }}>
@@ -101,7 +107,7 @@ export function OnboardingScreen() {
                 style={{
                   width: 200,
                   height: 200,
-                  background: 'white',
+                  background: 'rgba(252, 250, 245, 0.94)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -111,7 +117,7 @@ export function OnboardingScreen() {
               </div>
             </div>
             <div style={{ flex: 1 }}>
-              <div className="chip" style={{ background: 'white', marginBottom: 16 }}>
+              <div className="chip" style={{ background: 'rgba(252, 250, 245, 0.94)', marginBottom: 16 }}>
                 {card.tag}
               </div>
               <h1 style={{ fontSize: 44, lineHeight: 1.05, marginBottom: 14, color: 'var(--ink)' }}>{card.title}</h1>

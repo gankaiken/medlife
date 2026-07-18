@@ -159,7 +159,7 @@ function Criterion({ status, text, evidence, cite }: CriterionProps) {
         gap: 12,
         alignItems: 'flex-start',
         padding: 12,
-        background: '#FFFCF3',
+        background: 'linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 241, 231, 0.98))',
         border: '2.5px solid var(--line)',
         borderRadius: 14,
         boxShadow: '0 2px 0 var(--line)',
@@ -325,11 +325,10 @@ function StatusBanner({
       <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
         <div className="floaty">
           <div
-            className="plush"
+            className="plush debrief-banner-shell"
             style={{
               width: 110,
               height: 110,
-              background: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -401,11 +400,10 @@ function GradingProgress({ partialNarration }: { partialNarration: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
         <div className="floaty">
           <div
-            className="plush"
+            className="plush debrief-banner-shell"
             style={{
               width: 110,
               height: 110,
-              background: 'white',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -950,7 +948,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
         </div>
       </div>
 
-      <div className="plush" style={{ padding: 18, marginBottom: 22 }}>
+      <div className="plush debrief-card" style={{ padding: 18, marginBottom: 22 }}>
         <SectionLabel>DOMAIN SCORES</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
           <DomainRing label="Data Gathering" score={evaluation.domain_scores.data_gathering} />
@@ -960,7 +958,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
       </div>
 
       {(dgItems.length + cmItems.length + ipItems.length) > 0 && (
-        <div className="plush" style={{ padding: 18, marginBottom: 22 }}>
+        <div className="plush debrief-card" style={{ padding: 18, marginBottom: 22 }}>
           <SectionLabel>PER-CRITERION</SectionLabel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {dgItems.length > 0 && (
@@ -999,12 +997,12 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
         )}
       </div>
 
-      <div className="plush" style={{ padding: 16, marginBottom: 22 }}>
+      <div className="plush debrief-card" style={{ padding: 16, marginBottom: 22 }}>
         <SectionLabel>ACTIONS YOU TOOK</SectionLabel>
         <ActionChips patient={patient} c={c} />
       </div>
 
-      <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="learner-reflection-panel">
+      <div className="plush debrief-card" style={{ padding: 16, marginBottom: 22 }} data-testid="learner-reflection-panel">
         <SectionLabel>Learner Reflection</SectionLabel>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {[
@@ -1043,7 +1041,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
         </div>
       </div>
 
-      <div className="plush" style={{ padding: 16, marginBottom: 22 }}>
+      <div className="plush debrief-card" style={{ padding: 16, marginBottom: 22 }}>
         <SectionLabel>Learning Design and Review</SectionLabel>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
           {c.assessmentBlueprint.formativeLabels.map((label) => (
@@ -1059,7 +1057,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
           {attemptReviews.map((review) => (
-            <div key={String(review.id)} style={{ background: 'white', border: '2.5px solid var(--line)', borderRadius: 12, padding: 10 }}>
+            <div key={String(review.id)} className="debrief-review-card" style={{ padding: 10 }}>
               <div style={{ fontWeight: 900 }}>{String(review.reviewer_display_name ?? review.reviewer_role ?? 'Reviewer')}</div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 2 }}>
                 {String(review.reviewed_status ?? 'review logged')} · {String(review.agreement_label ?? 'n/a')} · {String(review.safety_concern_level ?? 'none')}
@@ -1077,7 +1075,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
         </div>
       </div>
 
-      <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="evidence-inspector">
+      <div className="plush debrief-card" style={{ padding: 16, marginBottom: 22 }} data-testid="evidence-inspector">
         <SectionLabel>Evidence Inspector</SectionLabel>
         <div
           style={{ fontSize: 12, fontWeight: 800, color: 'var(--ink-2)', marginBottom: 10 }}
@@ -1097,7 +1095,8 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
               return (
                 <div
                   key={receipt.receiptId}
-                  style={{ background: 'white', border: '3px solid var(--line)', borderRadius: 14, padding: 12 }}
+                  className="debrief-review-card"
+                  style={{ padding: 12 }}
                   data-testid={`evidence-receipt-${receipt.receiptId}`}
                 >
                   <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--ink-2)', marginBottom: 6 }}>
@@ -1132,7 +1131,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
       </div>
 
       {patient.transcript.length > 0 && (
-        <div className="plush" style={{ padding: 16, marginBottom: 22 }} data-testid="debrief-transcript">
+        <div className="plush debrief-card" style={{ padding: 16, marginBottom: 22 }} data-testid="debrief-transcript">
           <SectionLabel>Conversation Transcript</SectionLabel>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {patient.transcript
@@ -1176,7 +1175,7 @@ function EvaluationBody({ evaluation, patient, c, engineLabel, integrityStatus, 
       )}
 
       <div
-        className="plush"
+        className="plush debrief-card"
         style={{
           padding: 16,
           marginBottom: 22,

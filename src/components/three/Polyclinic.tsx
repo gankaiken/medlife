@@ -61,29 +61,29 @@ const OUTER_CENTER_X = (WORLD_LEFT_X + WORLD_RIGHT_X) / 2;
 
 const PALETTE = {
   skin: '#e4b896',
-  sheet: '#f5f1e8',
+  sheet: '#f2f7fa',
   hair: '#3a2a1f',
-  scrubsDoc: '#5e8ba3',
-  patientTop: '#b8a890',
-  patientPants: '#4a4035',
-  floor: '#d0a878',
-  floorPlank: '#c19565',
-  floorSeam: '#6a4a32',
-  wall: '#f4ecd8',
-  wallLow: '#d4b28a',
-  wallTrim: '#f7ecd4',
-  ceiling: '#fbf3dd',
-  ceilingTrim: '#e8d4ac',
-  trim: '#c89060',
-  accent: '#d65d2f',
-  wood: '#9a7648',
-  woodDark: '#563a20',
-  leather: '#3a2820',
-  plant: '#486b3a',
-  pot: '#8a5a32',
-  paper: '#fbf7ec',
-  brass: '#c89a54',
-  rugRed: '#8a3628',
+  scrubsDoc: '#4f92a8',
+  patientTop: '#b7c2cb',
+  patientPants: '#495564',
+  floor: '#b7c9d3',
+  floorPlank: '#aabdc8',
+  floorSeam: '#738997',
+  wall: '#eff6f8',
+  wallLow: '#d8e6ec',
+  wallTrim: '#f7fcfd',
+  ceiling: '#f9fcfd',
+  ceilingTrim: '#ddebf0',
+  trim: '#78a8b9',
+  accent: '#2db1c5',
+  wood: '#88a6b3',
+  woodDark: '#426171',
+  leather: '#1f3d4a',
+  plant: '#517e68',
+  pot: '#7d97a2',
+  paper: '#fbfefe',
+  brass: '#9cd3df',
+  rugRed: '#295d74',
 };
 
 const FRONT_WALL_SEGMENTS = [
@@ -332,15 +332,15 @@ function Lighting() {
           everything drifting toward amber. Previously tinted warm which,
           on top of the hemisphere + directional, made the whole room look
           like a sepia filter. */}
-      <ambientLight intensity={0.55} color="#ffffff" />
+      <ambientLight intensity={0.62} color="#f9feff" />
       {/* Soft sky / floor bounce — brighter + less saturated than before */}
-      <hemisphereLight args={['#f6f0e4', '#a89a84', 0.7]} />
+      <hemisphereLight args={['#e9f7ff', '#7d96a4', 0.92]} />
       {/* Key: "window" daylight through the left wall — still warm, just
           a touch less orange so walls don't look stained. */}
       <directionalLight
-        position={[-10, 8, 4]}
-        intensity={1.3}
-        color="#fff0d4"
+        position={[-9, 9, 6]}
+        intensity={1.4}
+        color="#eef9ff"
         castShadow
         shadow-mapSize-width={2048}
         shadow-mapSize-height={2048}
@@ -352,13 +352,14 @@ function Lighting() {
         shadow-camera-far={30}
       />
       {/* Fill from the opposite side — cooler, much softer, no shadows */}
-      <directionalLight position={[6, 6, 6]} intensity={0.35} color="#c9d8e8" />
+      <directionalLight position={[7, 5, 7]} intensity={0.48} color="#bedff0" />
       {/* Rim behind the doctor to separate the back wall from the figure */}
-      <directionalLight position={[0, 3, -8]} intensity={0.4} color="#ffb37a" />
+      <directionalLight position={[0, 4, -8]} intensity={0.36} color="#7ee8ff" />
       {/* Patient-chair fill — warm, practical */}
-      <pointLight position={[0, 2.4, ROOM_BACK_Z + 4.2]} intensity={0.45} distance={6} color="#ffd89a" />
+      <pointLight position={[0, 2.4, ROOM_BACK_Z + 4.2]} intensity={0.52} distance={6} color="#9fefff" />
       {/* Desk fill — subtle emphasis on the doctor side */}
-      <pointLight position={[0, 2.4, ROOM_BACK_Z + 1.6]} intensity={0.35} distance={5} color="#ffe4b8" />
+      <pointLight position={[0, 2.4, ROOM_BACK_Z + 1.6]} intensity={0.4} distance={5} color="#d4f6ff" />
+      <pointLight position={[0, 2.9, ROOM_BACK_Z + 3.2]} intensity={0.22} distance={10} color="#66f0da" />
     </>
   );
 }
@@ -374,9 +375,9 @@ function CeilingLight({ position }: { position: [number, number, number] }) {
       {/* diffuser panel */}
       <mesh>
         <boxGeometry args={[1.5, 0.04, 0.4]} />
-        <meshStandardMaterial color="#fff6dc" emissive="#ffe6b0" emissiveIntensity={1.6} toneMapped={false} />
+        <meshStandardMaterial color="#f6feff" emissive="#c8f5ff" emissiveIntensity={1.8} toneMapped={false} />
       </mesh>
-      <pointLight intensity={0.35} distance={7} color="#ffe4b8" />
+      <pointLight intensity={0.4} distance={7} color="#d8fbff" />
     </group>
   );
 }

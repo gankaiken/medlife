@@ -19,20 +19,13 @@ import { useAuth } from '../runtime/AuthProvider';
 import { TopBar } from './primitives';
 
 const inputStyle: React.CSSProperties = {
-  width: '100%',
-  border: '3px solid var(--line)',
-  borderRadius: 12,
-  padding: '10px 12px',
-  fontFamily: 'inherit',
-  fontSize: 14,
-  fontWeight: 700,
-  background: 'white',
+  background: 'rgba(255, 255, 255, 0.96)',
   color: 'var(--ink)',
 };
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="plush" style={{ padding: 14, background: 'white' }}>
+    <div className="workspace-stat-card">
       <div style={{ fontSize: 11, fontWeight: 900, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
         {label}
       </div>
@@ -126,7 +119,7 @@ export function EducatorWorkspaceScreen() {
       <div className="screen paper">
         <TopBar here={0} steps={['Educator']} />
         <div style={{ maxWidth: 780, margin: '0 auto', padding: '28px 36px' }}>
-          <div className="plush" style={{ padding: 20, background: 'var(--cream-2)' }}>
+          <div className="plush workspace-section" style={{ padding: 20 }}>
             <h1 style={{ fontSize: 32, marginBottom: 8 }}>Educator workspace unavailable</h1>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5 }}>
               This pilot console is only available to authorised reviewer roles configured on the backend.
@@ -146,16 +139,16 @@ export function EducatorWorkspaceScreen() {
   }
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)', overflowY: 'auto' }}>
+    <div className="screen workspace-shell" style={{ overflowY: 'auto' }}>
       <TopBar here={0} steps={['Pilot workspace']} />
       <div style={{ maxWidth: 1180, margin: '0 auto', padding: '28px 36px 60px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+        <div className="workspace-hero" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--ink-2)' }}>
+            <div style={{ fontSize: 12, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,0.68)' }}>
               Controlled pilot review
             </div>
             <h1 style={{ fontSize: 40, lineHeight: 1.05, marginTop: 6 }}>Educator and reviewer workspace</h1>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', marginTop: 6, maxWidth: 760 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.8)', marginTop: 6, maxWidth: 760, lineHeight: 1.6 }}>
               This console supports formative review, candidate curriculum checks, and case-governance logging. It does not create official Monash approval.
             </div>
           </div>
@@ -165,7 +158,7 @@ export function EducatorWorkspaceScreen() {
         </div>
 
         {error && (
-          <div className="plush" style={{ padding: 14, background: 'var(--rose)', marginTop: 18 }}>
+          <div className="plush workspace-section" style={{ padding: 14, background: 'linear-gradient(180deg, rgba(234, 208, 211, 0.98), rgba(243, 224, 225, 0.98))', marginTop: 18 }}>
             <div style={{ fontWeight: 800 }}>{error}</div>
           </div>
         )}
@@ -181,7 +174,7 @@ export function EducatorWorkspaceScreen() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginTop: 20 }}>
-          <div className="plush" style={{ padding: 16 }} data-testid="pilot-attempt-list">
+          <div className="plush workspace-section" style={{ padding: 16 }} data-testid="pilot-attempt-list">
             <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
               Learner attempts
             </div>
@@ -198,7 +191,9 @@ export function EducatorWorkspaceScreen() {
                       textAlign: 'left',
                       justifyContent: 'flex-start',
                       padding: '12px 14px',
-                      background: selectedEncounterId === String(attempt.id) ? 'var(--butter)' : 'white',
+                      background: selectedEncounterId === String(attempt.id)
+                        ? 'linear-gradient(180deg, rgba(232, 215, 166, 0.98), rgba(223, 199, 142, 0.98))'
+                        : 'rgba(255, 255, 255, 0.9)',
                     }}
                     onClick={() => setSelectedEncounterId(String(attempt.id))}
                   >
@@ -215,13 +210,13 @@ export function EducatorWorkspaceScreen() {
             )}
           </div>
 
-          <div className="plush" style={{ padding: 16 }} data-testid="pilot-attempt-review-panel">
+          <div className="plush workspace-section" style={{ padding: 16 }} data-testid="pilot-attempt-review-panel">
             <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
               Attempt review
             </div>
             {selectedAttempt ? (
               <>
-                <div style={{ background: 'white', border: '3px solid var(--line)', borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                <div className="workspace-subcard" style={{ padding: 12, marginBottom: 12 }}>
                   <div style={{ fontWeight: 900 }}>{String(selectedAttempt.case_name ?? selectedAttempt.case_id)}</div>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 4 }}>
                     {String(selectedAttempt.learner_display_name ?? 'Learner')} · {String(selectedAttempt.assessment_engine_value ?? 'unknown engine')}
@@ -237,15 +232,16 @@ export function EducatorWorkspaceScreen() {
                   onChange={(event) => setEducatorComment(event.target.value)}
                   rows={6}
                   placeholder="Educator comment"
+                  className="workspace-input"
                   style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }}
                 />
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                  <select aria-label="Agreement with automated feedback" value={agreementLabel} onChange={(event) => setAgreementLabel(event.target.value as typeof agreementLabel)} style={inputStyle}>
+                  <select aria-label="Agreement with automated feedback" value={agreementLabel} onChange={(event) => setAgreementLabel(event.target.value as typeof agreementLabel)} className="workspace-input" style={inputStyle}>
                     <option value="agree">Agree with automated feedback</option>
                     <option value="partially_agree">Partially agree</option>
                     <option value="disagree">Disagree</option>
                   </select>
-                  <select aria-label="Safety concern level" value={safetyConcernLevel} onChange={(event) => setSafetyConcernLevel(event.target.value as typeof safetyConcernLevel)} style={inputStyle}>
+                  <select aria-label="Safety concern level" value={safetyConcernLevel} onChange={(event) => setSafetyConcernLevel(event.target.value as typeof safetyConcernLevel)} className="workspace-input" style={inputStyle}>
                     <option value="none">No safety concern</option>
                     <option value="minor_omission">Minor omission</option>
                     <option value="important_omission">Important omission</option>
@@ -276,7 +272,7 @@ export function EducatorWorkspaceScreen() {
 
                 <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {attemptReviews.map((review) => (
-                    <div key={String(review.id)} style={{ background: 'var(--cream-2)', border: '2.5px solid var(--line)', borderRadius: 12, padding: 10 }}>
+                    <div key={String(review.id)} className="workspace-subcard soft" style={{ padding: 10 }}>
                       <div style={{ fontWeight: 900 }}>{String(review.reviewer_display_name ?? review.reviewer_role ?? 'Reviewer')}</div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', marginTop: 2 }}>
                         {String(review.reviewed_status ?? 'review_logged')} · {String(review.agreement_label ?? 'n/a')} · {String(review.safety_concern_level ?? 'none')}
@@ -294,28 +290,28 @@ export function EducatorWorkspaceScreen() {
                     Independent educator scoring
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <input aria-label="Rubric version" value={rubricVersion} onChange={(event) => setRubricVersion(event.target.value)} placeholder="Rubric version" style={inputStyle} />
-                    <input aria-label="Overall category" value={overallCategory} onChange={(event) => setOverallCategory(event.target.value)} placeholder="Overall category" style={inputStyle} />
-                    <input aria-label="Overall score" value={overallScore} onChange={(event) => setOverallScore(event.target.value)} placeholder="Overall score" style={inputStyle} />
+                    <input aria-label="Rubric version" value={rubricVersion} onChange={(event) => setRubricVersion(event.target.value)} placeholder="Rubric version" className="workspace-input" style={inputStyle} />
+                    <input aria-label="Overall category" value={overallCategory} onChange={(event) => setOverallCategory(event.target.value)} placeholder="Overall category" className="workspace-input" style={inputStyle} />
+                    <input aria-label="Overall score" value={overallScore} onChange={(event) => setOverallScore(event.target.value)} placeholder="Overall score" className="workspace-input" style={inputStyle} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <input aria-label="Data gathering verdict" value={domainScoreDataGathering} onChange={(event) => setDomainScoreDataGathering(event.target.value)} placeholder="Data gathering verdict" style={inputStyle} />
-                    <input aria-label="Clinical management verdict" value={domainScoreClinical} onChange={(event) => setDomainScoreClinical(event.target.value)} placeholder="Clinical management verdict" style={inputStyle} />
-                    <input aria-label="Communication verdict" value={domainScoreCommunication} onChange={(event) => setDomainScoreCommunication(event.target.value)} placeholder="Communication verdict" style={inputStyle} />
+                    <input aria-label="Data gathering verdict" value={domainScoreDataGathering} onChange={(event) => setDomainScoreDataGathering(event.target.value)} placeholder="Data gathering verdict" className="workspace-input" style={inputStyle} />
+                    <input aria-label="Clinical management verdict" value={domainScoreClinical} onChange={(event) => setDomainScoreClinical(event.target.value)} placeholder="Clinical management verdict" className="workspace-input" style={inputStyle} />
+                    <input aria-label="Communication verdict" value={domainScoreCommunication} onChange={(event) => setDomainScoreCommunication(event.target.value)} placeholder="Communication verdict" className="workspace-input" style={inputStyle} />
                   </div>
-                  <textarea aria-label="Missed history concepts" value={missedHistoryConcepts} onChange={(event) => setMissedHistoryConcepts(event.target.value)} rows={2} placeholder="Missed history concepts, comma separated" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
-                  <textarea aria-label="Safety findings" value={safetyFindings} onChange={(event) => setSafetyFindings(event.target.value)} rows={2} placeholder="Safety findings, comma separated" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
-                  <textarea aria-label="Investigation evaluation" value={investigationEvaluation} onChange={(event) => setInvestigationEvaluation(event.target.value)} rows={2} placeholder="Investigation evaluation" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
-                  <textarea aria-label="Diagnosis evaluation" value={diagnosisEvaluation} onChange={(event) => setDiagnosisEvaluation(event.target.value)} rows={2} placeholder="Diagnosis evaluation" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
-                  <textarea aria-label="Communication evaluation" value={communicationEvaluation} onChange={(event) => setCommunicationEvaluation(event.target.value)} rows={2} placeholder="Communication evaluation" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
-                  <textarea aria-label="Independent educator feedback" value={independentComment} onChange={(event) => setIndependentComment(event.target.value)} rows={4} placeholder="Independent educator feedback" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Missed history concepts" value={missedHistoryConcepts} onChange={(event) => setMissedHistoryConcepts(event.target.value)} rows={2} placeholder="Missed history concepts, comma separated" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Safety findings" value={safetyFindings} onChange={(event) => setSafetyFindings(event.target.value)} rows={2} placeholder="Safety findings, comma separated" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Investigation evaluation" value={investigationEvaluation} onChange={(event) => setInvestigationEvaluation(event.target.value)} rows={2} placeholder="Investigation evaluation" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Diagnosis evaluation" value={diagnosisEvaluation} onChange={(event) => setDiagnosisEvaluation(event.target.value)} rows={2} placeholder="Diagnosis evaluation" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Communication evaluation" value={communicationEvaluation} onChange={(event) => setCommunicationEvaluation(event.target.value)} rows={2} placeholder="Communication evaluation" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
+                  <textarea aria-label="Independent educator feedback" value={independentComment} onChange={(event) => setIndependentComment(event.target.value)} rows={4} placeholder="Independent educator feedback" className="workspace-input" style={{ ...inputStyle, resize: 'vertical', marginBottom: 10 }} />
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-                    <select aria-label="Educator confidence label" value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value as typeof confidenceLabel)} style={inputStyle}>
+                    <select aria-label="Educator confidence label" value={confidenceLabel} onChange={(event) => setConfidenceLabel(event.target.value as typeof confidenceLabel)} className="workspace-input" style={inputStyle}>
                       <option value="low">Low confidence</option>
                       <option value="medium">Medium confidence</option>
                       <option value="high">High confidence</option>
                     </select>
-                    <input aria-label="Review minutes" value={reviewMinutes} onChange={(event) => setReviewMinutes(event.target.value)} placeholder="Review minutes" style={inputStyle} />
+                    <input aria-label="Review minutes" value={reviewMinutes} onChange={(event) => setReviewMinutes(event.target.value)} placeholder="Review minutes" className="workspace-input" style={inputStyle} />
                   </div>
                   <button
                     type="button"
@@ -353,7 +349,7 @@ export function EducatorWorkspaceScreen() {
                   </button>
                   <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {attemptScores.map((score) => (
-                      <div key={String(score.id)} style={{ background: 'white', border: '2px solid var(--line)', borderRadius: 12, padding: 10 }} data-testid={`educator-score-${String(score.id)}`}>
+                      <div key={String(score.id)} className="workspace-subcard" style={{ padding: 10 }} data-testid={`educator-score-${String(score.id)}`}>
                         <div style={{ fontWeight: 900 }}>{String(score.reviewer_display_name ?? score.reviewer_role ?? 'Reviewer')}</div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
                           Independent score Â· {String(score.overall_category ?? 'n/a')} Â· rubric {String(score.rubric_version ?? 'n/a')}
@@ -373,25 +369,25 @@ export function EducatorWorkspaceScreen() {
           </div>
         </div>
 
-        <div className="plush" style={{ padding: 16, marginTop: 20 }} data-testid="case-review-workflow">
+        <div className="plush workspace-section" style={{ padding: 16, marginTop: 20 }} data-testid="case-review-workflow">
           <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
             Case review workflow
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            <select aria-label="Case review case" value={caseId} onChange={(event) => setCaseId(event.target.value)} style={inputStyle} data-testid="case-review-case-select">
+            <select aria-label="Case review case" value={caseId} onChange={(event) => setCaseId(event.target.value)} className="workspace-input" style={inputStyle} data-testid="case-review-case-select">
               {PATIENT_CASES.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
               ))}
             </select>
-            <select aria-label="Case review type" value={caseReviewType} onChange={(event) => setCaseReviewType(event.target.value as typeof caseReviewType)} style={inputStyle} data-testid="case-review-type-select">
+            <select aria-label="Case review type" value={caseReviewType} onChange={(event) => setCaseReviewType(event.target.value as typeof caseReviewType)} className="workspace-input" style={inputStyle} data-testid="case-review-type-select">
               <option value="clinical">Clinical review</option>
               <option value="curriculum">Curriculum review</option>
               <option value="simulation">Simulation review</option>
               <option value="ai">AI review</option>
             </select>
-            <select aria-label="Case review decision" value={caseDecision} onChange={(event) => setCaseDecision(event.target.value as typeof caseDecision)} style={inputStyle} data-testid="case-review-decision-select">
+            <select aria-label="Case review decision" value={caseDecision} onChange={(event) => setCaseDecision(event.target.value as typeof caseDecision)} className="workspace-input" style={inputStyle} data-testid="case-review-decision-select">
               <option value="request_revision">Request revision</option>
               <option value="candidate_public_source_mapping">Candidate public-source mapping</option>
               <option value="academic_review_required">Academic review required</option>
@@ -408,6 +404,7 @@ export function EducatorWorkspaceScreen() {
             rows={5}
             placeholder="Review comments"
             data-testid="case-review-comments"
+            className="workspace-input"
             style={{ ...inputStyle, resize: 'vertical', marginTop: 10 }}
           />
           <input
@@ -416,6 +413,7 @@ export function EducatorWorkspaceScreen() {
             onChange={(event) => setCaseFixtureLabel(event.target.value)}
             placeholder="Fixture label for development review records"
             data-testid="case-review-fixture-label"
+            className="workspace-input"
             style={{ ...inputStyle, marginTop: 10 }}
           />
           <button
@@ -443,7 +441,7 @@ export function EducatorWorkspaceScreen() {
           </button>
 
           <div style={{ marginTop: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ background: 'white', border: '3px solid var(--line)', borderRadius: 14, padding: 12 }} data-testid="selected-case-readiness">
+            <div className="workspace-subcard" style={{ padding: 12 }} data-testid="selected-case-readiness">
               <div style={{ fontWeight: 900, marginBottom: 8 }}>Selected case readiness</div>
               {(() => {
                 const selectedCase = PATIENT_CASES.find((item) => item.id === caseId);
@@ -465,11 +463,11 @@ export function EducatorWorkspaceScreen() {
                 );
               })()}
             </div>
-            <div style={{ background: 'white', border: '3px solid var(--line)', borderRadius: 14, padding: 12 }} data-testid="case-review-log">
+            <div className="workspace-subcard" style={{ padding: 12 }} data-testid="case-review-log">
               <div style={{ fontWeight: 900, marginBottom: 8 }}>Recorded review log</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {caseReviews.map((review) => (
-                  <div key={String(review.id)} style={{ background: 'var(--cream)', border: '2px solid var(--line)', borderRadius: 10, padding: 8 }} data-testid={`case-review-record-${String(review.id)}`}>
+                  <div key={String(review.id)} className="workspace-subcard soft" style={{ padding: 8 }} data-testid={`case-review-record-${String(review.id)}`}>
                     <div style={{ fontWeight: 800 }}>{String(review.review_type ?? 'review')}</div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)' }}>
                       {String(review.decision ?? '')} · {String(review.reviewer_display_name ?? review.reviewer_role ?? '')}
@@ -494,11 +492,11 @@ export function EducatorWorkspaceScreen() {
         </div>
 
         {session.user?.role === 'pilot_admin' && (
-          <div className="plush" style={{ padding: 16, marginTop: 20 }} data-testid="research-export-panel">
+          <div className="plush workspace-section" style={{ padding: 16, marginTop: 20 }} data-testid="research-export-panel">
             <div style={{ fontWeight: 900, fontSize: 12, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>
               Deidentified research export
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginBottom: 10 }}>
+            <div className="workspace-note" style={{ marginBottom: 10 }}>
               Export is pseudonymised and limited to consented learners who have not withdrawn. It is not anonymous and it is not described as ethics approval.
             </div>
             <button

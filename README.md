@@ -42,7 +42,7 @@ Medlife uses one frontend API strategy:
 - Hosted same-origin proxy deployment: configure `MEDLIFE_BACKEND_URL` in `middleware.ts`; secrets stay server-side
 - Offline mode: leave the backend unavailable; the guided encounter and local rule-based assessment still work
 
-Only public routing information belongs in `VITE_API_BASE_URL`. Secrets such as `ANTHROPIC_API_KEY`, `LIVEKIT_API_SECRET`, and `BACKEND_SHARED_SECRET` must stay on the server.
+Only public routing information belongs in `VITE_API_BASE_URL`. Secrets such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GRAFILAB_API_KEY`, `LIVEKIT_API_SECRET`, and `BACKEND_SHARED_SECRET` must stay on the server.
 
 ## Environment
 
@@ -64,9 +64,19 @@ Important variables:
 - `MEDLIFE_MAX_EVENT_PAYLOAD_BYTES`
 - `MEDLIFE_LOGIN_FAILURE_LIMIT`
 - `MEDLIFE_LOGIN_FAILURE_WINDOW_MINUTES`
+- `MEDLIFE_LLM_PROVIDER`
 - `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `GRAFILAB_API_KEY`
+- `GRAFILAB_BASE_URL`
 - `MEDLIFE_TEXT_AI_PATIENT_ENABLED`
+- `MEDLIFE_DEBRIEF_MODEL`
 - `MEDLIFE_TEXT_AI_PATIENT_MODEL`
+- `MEDLIFE_TRIAGE_MODEL`
+- `MEDLIFE_VOICE_LLM_PROVIDER`
+- `MEDLIFE_VOICE_MODEL`
+- `MEDLIFE_VOICE_TEMPERATURE`
 - `EHR_API_TOKEN`
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
@@ -74,7 +84,7 @@ Important variables:
 - `DEEPGRAM_API_KEY`
 - `CARTESIA_API_KEY`
 
-The backend safely starts without Anthropic or LiveKit credentials. Missing optional integrations only reduce capabilities; they do not block the guided flow.
+The backend safely starts without Anthropic, OpenAI, Grafilab, or LiveKit credentials. Missing optional integrations only reduce capabilities; they do not block the guided flow.
 
 ## Security and data lifecycle
 
@@ -109,17 +119,55 @@ In a second terminal:
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
 ```
 
-AI-enabled debrief:
+AI-enabled debrief with Anthropic:
 
 ```powershell
+$env:MEDLIFE_LLM_PROVIDER="anthropic"
 $env:ANTHROPIC_API_KEY="your-key"
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
 ```
 
-AI patient text mode:
+AI-enabled debrief with OpenAI / ChatGPT:
 
 ```powershell
+$env:MEDLIFE_LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="your-key"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+AI-enabled debrief with Grafilab:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="grafilab"
+$env:GRAFILAB_API_KEY="your-key"
+$env:GRAFILAB_BASE_URL="https://your-grafilab-openai-compatible-endpoint/v1"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+AI patient text mode with Anthropic:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="anthropic"
 $env:ANTHROPIC_API_KEY="your-key"
+$env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+AI patient text mode with OpenAI / ChatGPT:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="your-key"
+$env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+AI patient text mode with Grafilab:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="grafilab"
+$env:GRAFILAB_API_KEY="your-key"
+$env:GRAFILAB_BASE_URL="https://your-grafilab-openai-compatible-endpoint/v1"
 $env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
 ```
@@ -131,6 +179,33 @@ $env:LIVEKIT_URL="wss://your-livekit.example"
 $env:LIVEKIT_API_KEY="your-key"
 $env:LIVEKIT_API_SECRET="your-secret"
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+Voice worker with Anthropic:
+
+```powershell
+$env:MEDLIFE_VOICE_LLM_PROVIDER="anthropic"
+$env:ANTHROPIC_API_KEY="your-key"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
+```
+
+Voice worker with OpenAI / ChatGPT:
+
+```powershell
+$env:MEDLIFE_VOICE_LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="your-key"
+$env:MEDLIFE_VOICE_MODEL="gpt-4o-mini"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
+```
+
+Voice worker with Grafilab:
+
+```powershell
+$env:MEDLIFE_VOICE_LLM_PROVIDER="grafilab"
+$env:GRAFILAB_API_KEY="your-key"
+$env:GRAFILAB_BASE_URL="https://your-grafilab-openai-compatible-endpoint/v1"
+$env:MEDLIFE_VOICE_MODEL="gpt-4o-mini"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
 ```
 
 Local production preview against the backend:

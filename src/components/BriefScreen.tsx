@@ -1,4 +1,4 @@
-import { DoodleScatter, PatientFace, TopBar } from './primitives';
+import { PatientFace, TopBar } from './primitives';
 import { getCase, getPatientCase } from '../data/cases';
 import { store, useStore, useTweaks } from '../game/store';
 import { useAuth } from '../runtime/AuthProvider';
@@ -8,16 +8,15 @@ interface VitalCard {
   value: string;
   unit: string;
   color: string;
-  icon: string;
 }
 
 function buildVitals(p?: { hr: number; bp: string; spo2: number; temp: number; rr: number }): VitalCard[] {
   return [
-    { label: 'HR', value: String(p?.hr ?? 88), unit: 'bpm', color: 'var(--rose)', icon: '❤' },
-    { label: 'BP', value: p?.bp ?? '120/80', unit: 'mmHg', color: 'var(--peach)', icon: '⌥' },
-    { label: 'RR', value: String(p?.rr ?? 16), unit: '/min', color: 'var(--sky)', icon: '~' },
-    { label: 'SpO₂', value: String(p?.spo2 ?? 98), unit: '%', color: 'var(--mint)', icon: '○' },
-    { label: 'Temp', value: (p?.temp ?? 36.7).toFixed(1), unit: '°C', color: 'var(--butter)', icon: '☼' },
+    { label: 'HR', value: String(p?.hr ?? 88), unit: 'bpm', color: 'var(--rose)' },
+    { label: 'BP', value: p?.bp ?? '120/80', unit: 'mmHg', color: 'var(--peach)' },
+    { label: 'RR', value: String(p?.rr ?? 16), unit: '/min', color: 'var(--sky)' },
+    { label: 'SpO2', value: String(p?.spo2 ?? 98), unit: '%', color: 'var(--mint)' },
+    { label: 'Temp', value: (p?.temp ?? 36.7).toFixed(1), unit: '°C', color: 'var(--butter)' },
   ];
 }
 
@@ -27,7 +26,7 @@ export function BriefScreen() {
   const caseId = useStore((s) => s.selectedCaseId);
   const c = getCase(caseId);
   const patient = getPatientCase(caseId);
-  const VITALS = buildVitals(patient?.vitals);
+  const vitals = buildVitals(patient?.vitals);
   const chiefComplaint = patient?.chiefComplaint ?? c.complaint;
   const arrivalBlurb = patient?.arrivalBlurb ?? 'Looks well. No acute distress.';
   const severityChip =
@@ -35,343 +34,161 @@ export function BriefScreen() {
       ? { label: 'critical · resuscitate', tone: 'rose' }
       : patient?.severity === 'urgent'
         ? { label: 'urgent', tone: 'peach' }
-        : { label: 'first presentation', tone: 'rose' };
+        : { label: 'first presentation', tone: 'mint' };
 
   return (
-    <div className="screen paper" style={{ position: 'relative' }}>
+    <div className="screen platform-screen" style={{ position: 'relative' }}>
       <TopBar here={3} steps={['Polyclinic', 'GP', 'Case', 'Brief']} />
 
-      <DoodleScatter
-        items={[
-          { kind: 'sparkle', x: 60, y: 100, size: 24, color: '#FFD86B' },
-          { kind: 'sparkle', x: '92%', y: 130, size: 22, color: '#5AB7F2' },
-          { kind: 'star', x: 40, y: 380, size: 30, color: '#FFD86B', anim: 'wobble' },
-        ]}
-      />
-
-      <div
-        style={{
-          padding: '28px 36px',
-          display: 'grid',
-          gridTemplateColumns: '1.2fr 1fr',
-          gap: 28,
-          minHeight: 'calc(100vh - 67px)',
-        }}
-      >
-        {/* LEFT: clipboard */}
-        <div
-          className="plush-lg"
-          style={{ background: '#FFFCF3', padding: 24, position: 'relative', transform: 'rotate(-1deg)' }}
-        >
-          <div style={{ position: 'absolute', top: -22, left: '50%', transform: 'translateX(-50%)' }}>
-            <svg width="120" height="46" viewBox="0 0 120 46">
-              <rect x="20" y="6" width="80" height="34" rx="8" fill="#C9C9CF" stroke="var(--line)" strokeWidth="3.5" />
-              <rect x="34" y="14" width="52" height="18" rx="4" fill="#9C9CA3" stroke="var(--line)" strokeWidth="3" />
-            </svg>
+      <div className="platform-container platform-grid brief" style={{ minHeight: 'calc(100vh - 67px)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="platform-hero">
+            <div className="platform-label">Doorway brief</div>
+            <h1 className="platform-title" style={{ fontSize: 42 }}>{c.name}</h1>
+            <div className="platform-copy">
+              {c.age} years · {c.sex === 'F' ? 'Female' : 'Male'} · {c.cond}. Enter with a focused plan, keep the consultation safe, and close with a clear explanation.
+            </div>
+            <div style={{ marginTop: 16, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <span className="chip butter">Case briefing</span>
+              <span className="chip">{patient?.learningDesign.prebrief.expectedLearnerLevel ?? 'Clinical learner'}</span>
+              <span className={`chip ${severityChip.tone}`}>{severityChip.label}</span>
+            </div>
           </div>
 
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginTop: 10,
-              marginBottom: 16,
-            }}
-          >
-            <span className="chip butter">DOORWAY BRIEF</span>
-            <span className="chip">Case #07</span>
-          </div>
-
-          <h1 style={{ fontSize: 32, lineHeight: 1.1, marginBottom: 4 }}>{c.name}</h1>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-2)', marginBottom: 16 }}>
-            {c.age} y · {c.sex === 'F' ? 'Female' : 'Male'} · {c.cond}
-          </div>
-
-          <div
-            style={{
-              background: 'white',
-              border: '3px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              padding: 14,
-              marginBottom: 14,
-              boxShadow: 'var(--plush-tiny)',
-            }}
-          >
+          <div className="glass-card" style={{ padding: 22 }}>
+            <div className="section-heading">
+              <div className="title">Presenting problem</div>
+            </div>
             <div
               style={{
+                padding: '16px 18px',
+                background: 'linear-gradient(135deg, rgba(214,236,255,0.28), rgba(255,255,255,0.94))',
+                borderRadius: 22,
+                border: '1px solid rgba(22,53,65,0.08)',
+                fontSize: 18,
                 fontWeight: 800,
-                fontSize: 11,
-                color: 'var(--ink-2)',
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                marginBottom: 4,
+                lineHeight: 1.45,
               }}
             >
-              CHIEF COMPLAINT
+              "{chiefComplaint}"
             </div>
-            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.35 }}>
-              {`"${chiefComplaint}"`}
+            <div style={{ marginTop: 14, fontSize: 14, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+              Bench impression: {arrivalBlurb}
             </div>
           </div>
 
-          <div
-            style={{
-              background: 'white',
-              border: '3px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              padding: 12,
-              marginBottom: 14,
-              boxShadow: 'var(--plush-tiny)',
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 11,
-                color: 'var(--ink-2)',
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                marginBottom: 2,
-              }}
-            >
-              ON THE BENCH
+          <div className="glass-card" style={{ padding: 22 }} data-testid="case-review-banner">
+            <div className="section-heading">
+              <div className="title">Governance and safeguards</div>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600 }}>{arrivalBlurb}</div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+              {patient?.status && (
+                <span className={`chip ${patient.status === 'approved' ? 'mint' : 'butter'}`} data-testid="case-status-chip">
+                  {patient.status.replace(/_/g, ' ')}
+                </span>
+              )}
+              {patient?.approvalStatus && (
+                <span className="chip" data-testid="case-approval-chip">
+                  {patient.approvalStatus.replace(/_/g, ' ')}
+                </span>
+              )}
+              {patient?.assessmentBlueprint.formativeLabels.map((label) => (
+                <span key={label} className="chip">{label}</span>
+              ))}
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.55, color: 'var(--ink-2)' }}>
+              {patient?.reviewBanner ?? patient?.learningDesign.recommendedUse}
+            </div>
           </div>
 
-          <div
-            style={{
-              background: 'var(--butter)',
-              border: '3px solid var(--line)',
-              borderRadius: 'var(--r-md)',
-              padding: 14,
-              boxShadow: 'var(--plush-tiny)',
-            }}
-          >
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 11,
-                color: 'var(--ink)',
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                marginBottom: 6,
-              }}
-            >
-              YOUR TASK
+          <div className="glass-card" style={{ padding: 22 }}>
+            <div className="section-heading">
+              <div className="title">Your task</div>
             </div>
-            <ol style={{ margin: 0, paddingLeft: 18, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>
-              <li>Take a focused history</li>
-              <li>Examine if appropriate</li>
-              <li>Agree a plan with the patient</li>
+            <ol style={{ margin: 0, paddingLeft: 20, fontSize: 14, fontWeight: 700, lineHeight: 1.7 }}>
+              <li>Take a focused history.</li>
+              <li>Examine or investigate only when it changes your reasoning.</li>
+              <li>Agree on a safe plan, then reflect on your performance.</li>
             </ol>
           </div>
-
-          {(patient?.reviewBanner || patient?.status || patient?.approvalStatus) && (
-            <div
-              style={{
-                background: 'white',
-                border: '3px solid var(--line)',
-                borderRadius: 'var(--r-md)',
-                padding: 14,
-                marginTop: 14,
-                boxShadow: 'var(--plush-tiny)',
-              }}
-              data-testid="case-review-banner"
-            >
-              <div
-                style={{
-                  fontWeight: 800,
-                  fontSize: 11,
-                  color: 'var(--ink-2)',
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                  marginBottom: 6,
-                }}
-              >
-                Governance status
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                {patient?.status && (
-                  <span className={`chip ${patient.status === 'approved' ? 'mint' : 'butter'}`} data-testid="case-status-chip">
-                    {patient.status.replace(/_/g, ' ')}
-                  </span>
-                )}
-                {patient?.approvalStatus && (
-                  <span className="chip" data-testid="case-approval-chip">
-                    {patient.approvalStatus.replace(/_/g, ' ')}
-                  </span>
-                )}
-              </div>
-              {patient?.reviewBanner && (
-                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.45 }}>
-                  {patient.reviewBanner}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
-        {/* RIGHT */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div
-            className="plush"
-            style={{ background: 'var(--rose)', padding: 14, position: 'relative', transform: 'rotate(1.2deg)' }}
-          >
-            <div
-              style={{
-                background: 'white',
-                borderRadius: 16,
-                border: '3px solid var(--line)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 14,
-                padding: 14,
-              }}
-            >
+          <div className="glass-card dark" style={{ padding: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
               <div className="floaty">
-                <PatientFace style={tweaks.avatarStyle} skin={c.skin} hair={c.hair} size={110} mood={c.mood} accessory={c.accessory} />
+                <PatientFace style={tweaks.avatarStyle} skin={c.skin} hair={c.hair} size={122} mood={c.mood} accessory={c.accessory} />
               </div>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 18 }}>{c.name.split(' ')[0]}</div>
-                <div style={{ fontSize: 13, color: 'var(--ink-2)', fontWeight: 700 }}>currently waiting</div>
-                <div style={{ marginTop: 6 }} className={`chip ${severityChip.tone}`}>
+                <div className="platform-label">Waiting patient</div>
+                <div style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.05 }}>{c.name.split(' ')[0]}</div>
+                <div style={{ marginTop: 6, fontSize: 14, fontWeight: 700, color: 'rgba(255,255,255,0.74)' }}>
+                  currently waiting
+                </div>
+                <div style={{ marginTop: 10 }} className={`chip ${severityChip.tone}`}>
                   {severityChip.label}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="plush" style={{ padding: 14 }}>
-            <div
-              style={{
-                fontWeight: 800,
-                fontSize: 11,
-                color: 'var(--ink-2)',
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-                marginBottom: 8,
-              }}
-            >
-              TRIAGE VITALS
+          <div className="glass-card" style={{ padding: 22 }}>
+            <div className="section-heading">
+              <div className="title">Triage vitals</div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
-              {VITALS.map((v) => (
-                <div
-                  key={v.label}
-                  style={{
-                    background: v.color,
-                    border: '3px solid var(--line)',
-                    borderRadius: 12,
-                    padding: '8px 4px',
-                    textAlign: 'center',
-                    boxShadow: 'var(--plush-tiny)',
-                  }}
-                >
-                  <div style={{ fontSize: 18 }}>{v.icon}</div>
-                  <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>{v.value}</div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ink)' }}>
-                    {v.label} <span style={{ color: 'rgba(42, 49, 53, 0.9)' }}>{v.unit}</span>
-                  </div>
+            <div className="metric-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              {vitals.map((v) => (
+                <div key={v.label} className="metric-card" style={{ background: v.color }}>
+                  <div className="big" style={{ fontSize: 26 }}>{v.value}</div>
+                  <div className="sub">{v.label} · {v.unit}</div>
                 </div>
               ))}
             </div>
           </div>
 
           {patient && (
-            <>
-              <div className="plush" style={{ padding: 14 }}>
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 11,
-                    color: 'var(--ink-2)',
-                    letterSpacing: '.06em',
-                    textTransform: 'uppercase',
-                    marginBottom: 8,
-                  }}
-                >
-                  Prebrief
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
-                  <span className="chip butter">{patient.learningDesign.prebrief.expectedLearnerLevel}</span>
-                  {patient.assessmentBlueprint.formativeLabels.map((label) => (
-                    <span key={label} className="chip">{label}</span>
-                  ))}
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, color: 'var(--ink-2)' }}>
-                  {patient.learningDesign.recommendedUse}
-                </div>
-                <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 13, fontWeight: 700, lineHeight: 1.6 }}>
-                  {patient.learningDesign.prebrief.learningObjectives.map((item) => <li key={item}>{item}</li>)}
-                </ul>
+            <div className="glass-card" style={{ padding: 22 }}>
+              <div className="section-heading">
+                <div className="title">Prebrief and access</div>
               </div>
-
-              <div className="plush" style={{ padding: 14 }}>
-                <div
-                  style={{
-                    fontWeight: 800,
-                    fontSize: 11,
-                    color: 'var(--ink-2)',
-                    letterSpacing: '.06em',
-                    textTransform: 'uppercase',
-                    marginBottom: 8,
-                  }}
-                >
-                  Prerequisites and safeguards
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.55, color: 'var(--ink-2)' }}>
-                  Stage recommendation: {patient.pilotReadiness.candidateStage.replace(/_/g, ' ')} · Your current stage: {preferences.learner_stage.replace(/_/g, ' ')}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  {patient.curriculumAlignment.prerequisites.map((item) => (
-                    <span key={item} className="chip sky">{item}</span>
-                  ))}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 10 }}>
-                  AI disclosure: {patient.learningDesign.prebrief.aiModeExplanation}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 6 }}>
-                  Modality limits: {patient.assessmentBlueprint.modalityLimits.join(' ')}
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.5, marginTop: 6 }}>
-                  <span data-testid="brief-accessibility-path">
-                    Accessibility path: {preferences.non_3d_mode || preferences.low_bandwidth_mode ? 'Non-3D / low-bandwidth mode will open the chart-first encounter.' : '3D encounter is available, but not required to complete the case.'}
-                  </span>
-                </div>
+              <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.6, color: 'var(--ink-2)' }}>
+                {patient.learningDesign.recommendedUse}
               </div>
-            </>
+              <ul style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: 13, fontWeight: 700, lineHeight: 1.7 }}>
+                {patient.learningDesign.prebrief.learningObjectives.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+              <div style={{ marginTop: 14, fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                Stage recommendation: {patient.pilotReadiness.candidateStage.replace(/_/g, ' ')} · Your current stage: {preferences.learner_stage.replace(/_/g, ' ')}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                AI disclosure: {patient.learningDesign.prebrief.aiModeExplanation}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                Modality limits: {patient.assessmentBlueprint.modalityLimits.join(' ')}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: 'var(--ink-2)', lineHeight: 1.55 }}>
+                <span data-testid="brief-accessibility-path">
+                  Accessibility path: {preferences.non_3d_mode || preferences.low_bandwidth_mode ? 'Non-3D / low-bandwidth mode will open the chart-first encounter.' : '3D encounter is available, but not required to complete the case.'}
+                </span>
+              </div>
+            </div>
           )}
 
-          <div
-            className="plush"
-            style={{ padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
-          >
+          <div className="glass-card" style={{ padding: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div
-                style={{
-                  fontWeight: 800,
-                  fontSize: 11,
-                  color: 'var(--ink-2)',
-                  letterSpacing: '.06em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                YOUR TIME
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: 'var(--peach-deep)' }}>8:00</div>
+              <div className="platform-label" style={{ color: 'var(--ink-2)' }}>Time budget</div>
+              <div style={{ fontSize: 30, fontWeight: 900, color: 'var(--teal-700)' }}>8:00</div>
             </div>
-            <div style={{ display: 'flex', gap: 4 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
                   style={{
-                    width: 8,
+                    width: 10,
                     height: 30,
-                    borderRadius: 4,
-                    background: 'var(--mint)',
-                    border: '2.5px solid var(--line)',
+                    borderRadius: 999,
+                    background: i < 6 ? 'var(--mint)' : 'var(--butter)',
+                    border: '1px solid rgba(22,53,65,0.12)',
                   }}
                 />
               ))}
@@ -385,7 +202,7 @@ export function BriefScreen() {
             onClick={() => store.setScreen('encounter')}
             data-testid="enter-encounter"
           >
-            ✊ Knock and enter
+            Knock and enter
           </button>
         </div>
       </div>

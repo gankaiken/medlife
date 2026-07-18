@@ -26,6 +26,11 @@ from livekit import agents, rtc
 from livekit.agents import Agent, AgentSession, RoomInputOptions, WorkerOptions, cli
 from livekit.plugins import anthropic, cartesia, deepgram, silero
 
+try:
+    from livekit.plugins import openai
+except Exception:  # pragma: no cover - optional dependency guard for voice venvs
+    openai = None
+
 # Load .env.local first (project convention), .env as fallback.
 _BACKEND = Path(__file__).resolve().parent
 load_dotenv(_BACKEND / ".env.local")
@@ -55,6 +60,14 @@ DEFAULT_INSTRUCTIONS = (
 )
 DEFAULT_INITIAL = "Hi doc."
 
+VOICE_PROVIDER_ALIASES = {
+    "anthropic": "anthropic",
+    "openai": "openai",
+    "chatgpt": "openai",
+    "grafilab": "grafilab",
+    "grafi": "grafilab",
+}
+
 
 def _hash_str(s: str) -> int:
     """FNV-1a, mirrors src/voice/patientPersona.ts so TS-side and Python-side
@@ -81,6 +94,60 @@ def parse_metadata(raw: str | None) -> dict:
         return {}
 
 
+def _voice_provider() -> str:
+    raw = os.environ.get("MEDLIFE_VOICE_LLM_PROVIDER") or os.environ.get("MEDLIFE_LLM_PROVIDER") or "anthropic"
+    return VOICE_PROVIDER_ALIASES.get(raw.strip().lower(), "anthropic")
+
+
+def _voice_model_name() -> str:
+    configured = os.environ.get("MEDLIFE_VOICE_MODEL")
+    if configured:
+        return configured
+    if _voice_provider() == "anthropic":
+        return "claude-haiku-4-5-20251001"
+    return "gpt-4o-mini"
+
+
+def _grafilab_base_url() -> str | None:
+    raw = os.environ.get("GRAFILAB_BASE_URL") or os.environ.get("MEDLIFE_GRAFILAB_BASE_URL")
+    if not raw:
+        return None
+    return raw.rstrip("/")
+
+
+def _openai_base_url() -> str:
+    raw = os.environ.get("OPENAI_BASE_URL") or os.environ.get("MEDLIFE_OPENAI_BASE_URL")
+    return (raw or "https://api.openai.com/v1").rstrip("/")
+
+
+def build_voice_llm():
+    provider = _voice_provider()
+    model = _voice_model_name()
+    temperature = float(os.environ.get("MEDLIFE_VOICE_TEMPERATURE", "0.8"))
+
+    if provider == "anthropic":
+        logger.info("voice llm provider=Anthropic model=%s", model)
+        return anthropic.LLM(model=model, temperature=temperature)
+
+    if openai is None:
+        raise RuntimeError("livekit openai plugin unavailable for voice worker")
+
+    if provider == "grafilab":
+        api_key = os.environ.get("GRAFILAB_API_KEY")
+        base_url = _grafilab_base_url()
+        if not api_key or not base_url:
+            raise RuntimeError("grafilab voice provider requires GRAFILAB_API_KEY and GRAFILAB_BASE_URL")
+        logger.info("voice llm provider=Grafilab model=%s base_url=%s", model, base_url)
+        return openai.LLM(model=model, api_key=api_key, base_url=base_url, temperature=temperature)
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("openai voice provider requires OPENAI_API_KEY")
+    base_url = _openai_base_url()
+    logger.info("voice llm provider=OpenAI model=%s base_url=%s", model, base_url)
+    return openai.LLM(model=model, api_key=api_key, base_url=base_url, temperature=temperature)
+
+
 async def entrypoint(ctx: agents.JobContext):
     await ctx.connect()
 
@@ -93,13 +160,13 @@ async def entrypoint(ctx: agents.JobContext):
     voice_id = meta.get("voiceId") or pick_voice(case_id, speaker_gender)
 
     logger.info(
-        "joining room=%s case=%s gender=%s voice=%s",
-        ctx.room.name, case_id, speaker_gender, voice_id,
+        "joining room=%s case=%s gender=%s voice=%s llm_provider=%s llm_model=%s",
+        ctx.room.name, case_id, speaker_gender, voice_id, _voice_provider(), _voice_model_name(),
     )
 
     session = AgentSession(
         stt=deepgram.STT(model="nova-3", language="en"),
-        llm=anthropic.LLM(model="claude-haiku-4-5-20251001", temperature=0.8),
+        llm=build_voice_llm(),
         tts=cartesia.TTS(model="sonic-2", voice=voice_id),
         vad=silero.VAD.load(),
     )

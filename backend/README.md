@@ -33,7 +33,7 @@ This FastAPI backend supports the current Medlife guided flow, secure learner ac
 `/health` and `/agent/capabilities` return the same non-secret runtime model:
 
 - `backend_available`: backend is up and serving requests
-- `ai_debrief_available`: Anthropic debrief path is configured
+- `ai_debrief_available`: the configured LLM debrief path is available
 - `guided_mode_available`: guided consultation is supported
 - `text_ai_patient_available`: learner-facing text AI patient mode is available
 - `voice_backend_configured`: backend can mint voice tokens
@@ -49,8 +49,9 @@ This FastAPI backend supports the current Medlife guided flow, secure learner ac
 
 Current implementation:
 
-- Provider: Anthropic
-- Model: `claude-opus-4-7`
+- Provider: selected by `MEDLIFE_LLM_PROVIDER`
+- Default Anthropic model: `claude-opus-4-7`
+- Default OpenAI-compatible debrief model: `gpt-4.1`
 - Timeout: 20 seconds
 - Max request size: `120000` JSON characters
 - Max transcript size: `8000` characters
@@ -105,9 +106,19 @@ Optional integrations:
 - `MEDLIFE_MAX_EVENT_PAYLOAD_BYTES`
 - `MEDLIFE_LOGIN_FAILURE_LIMIT`
 - `MEDLIFE_LOGIN_FAILURE_WINDOW_MINUTES`
+- `MEDLIFE_LLM_PROVIDER`
 - `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
+- `GRAFILAB_API_KEY`
+- `GRAFILAB_BASE_URL`
 - `MEDLIFE_TEXT_AI_PATIENT_ENABLED`
+- `MEDLIFE_DEBRIEF_MODEL`
 - `MEDLIFE_TEXT_AI_PATIENT_MODEL`
+- `MEDLIFE_TRIAGE_MODEL`
+- `MEDLIFE_VOICE_LLM_PROVIDER`
+- `MEDLIFE_VOICE_MODEL`
+- `MEDLIFE_VOICE_TEMPERATURE`
 - `EHR_API_TOKEN`
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
@@ -159,12 +170,62 @@ python -m backend.verify_security_config
 python -m backend.verify_readiness_failures
 ```
 
-To enable learner-facing text AI patient mode locally:
+To enable learner-facing text AI patient mode locally with Anthropic:
 
 ```powershell
+$env:MEDLIFE_LLM_PROVIDER="anthropic"
 $env:ANTHROPIC_API_KEY="your-key"
 $env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
 python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+To enable learner-facing text AI patient mode locally with OpenAI / ChatGPT:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="your-key"
+$env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+To enable learner-facing text AI patient mode locally with Grafilab:
+
+```powershell
+$env:MEDLIFE_LLM_PROVIDER="grafilab"
+$env:GRAFILAB_API_KEY="your-key"
+$env:GRAFILAB_BASE_URL="https://your-grafilab-openai-compatible-endpoint/v1"
+$env:MEDLIFE_TEXT_AI_PATIENT_ENABLED="1"
+python -m uvicorn backend.server:app --host 127.0.0.1 --port 8787
+```
+
+To run the voice worker with Anthropic:
+
+```powershell
+backend\.venv-voice\Scripts\python -m pip install -r backend\voice_agent_requirements.txt
+$env:MEDLIFE_VOICE_LLM_PROVIDER="anthropic"
+$env:ANTHROPIC_API_KEY="your-key"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
+```
+
+To run the voice worker with OpenAI / ChatGPT:
+
+```powershell
+backend\.venv-voice\Scripts\python -m pip install -r backend\voice_agent_requirements.txt
+$env:MEDLIFE_VOICE_LLM_PROVIDER="openai"
+$env:OPENAI_API_KEY="your-key"
+$env:MEDLIFE_VOICE_MODEL="gpt-4o-mini"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
+```
+
+To run the voice worker with Grafilab:
+
+```powershell
+backend\.venv-voice\Scripts\python -m pip install -r backend\voice_agent_requirements.txt
+$env:MEDLIFE_VOICE_LLM_PROVIDER="grafilab"
+$env:GRAFILAB_API_KEY="your-key"
+$env:GRAFILAB_BASE_URL="https://your-grafilab-openai-compatible-endpoint/v1"
+$env:MEDLIFE_VOICE_MODEL="gpt-4o-mini"
+backend\.venv-voice\Scripts\python backend\voice_agent.py dev
 ```
 
 ## Backend verification

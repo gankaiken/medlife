@@ -102,16 +102,13 @@ export function BackgroundMusic() {
       }
       aria-label={userMuted ? 'Unmute music' : 'Mute music'}
       style={{
-        position: 'fixed',
-        top: 18,
-        right: 156,
-        zIndex: 1000,
         width: 36,
         height: 36,
         borderRadius: '50%',
-        border: '3px solid var(--line)',
-        background: off ? 'var(--cream)' : 'var(--butter)',
-        boxShadow: '0 2px 0 var(--line)',
+        border: '2.5px solid rgba(255,255,255,0.72)',
+        background: off ? 'rgba(255,255,255,0.92)' : 'rgba(171,245,249,0.95)',
+        color: 'var(--ink)',
+        boxShadow: '0 2px 0 rgba(12, 26, 43, 0.34)',
         cursor: 'pointer',
         fontSize: 16,
         fontFamily: 'inherit',
@@ -120,6 +117,7 @@ export function BackgroundMusic() {
         justifyContent: 'center',
         padding: 0,
         opacity: inSession && !userMuted ? 0.8 : 1,
+        flexShrink: 0,
       }}
     >
       <span aria-hidden style={{ lineHeight: 1 }}>{off ? '🔇' : '🎵'}</span>

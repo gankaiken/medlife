@@ -14,7 +14,6 @@ import { HistoryScreen } from './components/HistoryScreen';
 import { EducatorWorkspaceScreen } from './components/EducatorWorkspaceScreen';
 import { AgenticRoundsScreen } from './components/AgenticRoundsScreen';
 import { AgentTopologyScreen } from './components/AgentTopologyScreen';
-import { BackgroundMusic } from './components/BackgroundMusic';
 import { RuntimeProvider, useRuntime } from './runtime/RuntimeProvider';
 import { AuthProvider, useAuth } from './runtime/AuthProvider';
 import { EncounterSyncProvider } from './runtime/EncounterSyncProvider';
@@ -128,7 +127,6 @@ function AppShell() {
       {screen === 'educatorWorkspace' && <EducatorWorkspaceScreen />}
       {screen === 'agenticRounds' && <AgenticRoundsScreen />}
       {screen === 'agentTopology' && <AgentTopologyScreen />}
-      <BackgroundMusic />
     </div>
   );
 }

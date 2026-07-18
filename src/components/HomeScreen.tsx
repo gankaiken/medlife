@@ -217,6 +217,24 @@ export function HomeScreen() {
   const stats = computeStats(history);
   const interactionMode = getInteractionModeLabel(capabilities, backendReachable);
   const debriefMode = getDebriefModeLabel(capabilities, backendReachable);
+  const liveVoiceReady = capabilities.live_voice_usable;
+  const howItWorksTitle = liveVoiceReady ? 'How it works: real voice AI patient' : 'How it works: AI patient practice';
+  const howItWorksPoints = liveVoiceReady
+    ? [
+        'Students talk to an AI patient in a real voice conversation.',
+        'They take history, order tests, make diagnoses, and prescribe treatment.',
+        'The simulator responds in real time so learners can practise medicine without risking real patients.',
+      ]
+    : [
+        'Students practise with an AI patient through guided and AI-supported consultation modes.',
+        'They take history, order tests, make diagnoses, and prescribe treatment inside the same case workflow.',
+        'The simulator responds in real time through the current available mode so learners can practise medicine without risking real patients.',
+      ];
+  const whyItMattersPoints = [
+    'Bridges the gap between textbook knowledge and real-world clinical decision making.',
+    'Lets students make mistakes safely in a sandbox environment before they meet real patients.',
+    'Provides detailed feedback after each session so learners can see what to improve next.',
+  ];
   const inProgress = session?.authenticated
     ? serverAttempts.filter((attempt) => attempt.status === 'in_progress')
     : [];
@@ -253,25 +271,13 @@ export function HomeScreen() {
 
   return (
     <div
-      className="screen"
-      style={{
-        background:
-          'radial-gradient(circle at top right, rgba(208,235,255,0.45), transparent 26%), linear-gradient(180deg, #eef6f8 0%, #e4f0f3 48%, #dcebee 100%)',
-      }}
+      className="screen platform-screen"
     >
       <TopBar here={0} steps={['Profile']} />
 
-      <div
-        style={{
-          padding: '28px 36px',
-          minHeight: 'calc(100vh - 67px)',
-          display: 'grid',
-          gridTemplateColumns: '1.4fr 1fr',
-          gap: 24,
-        }}
-      >
+      <div className="platform-container platform-grid two" style={{ minHeight: 'calc(100vh - 67px)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-          <div>
+          <div className="platform-hero">
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <span className="chip mint">{interactionMode}</span>
               <span className="chip sky">{debriefMode}</span>
@@ -292,24 +298,26 @@ export function HomeScreen() {
               style={{
                 fontWeight: 800,
                 fontSize: 12,
-                color: 'var(--ink-3)',
+                color: 'rgba(255,255,255,0.68)',
                 textTransform: 'uppercase',
                 letterSpacing: '.12em',
               }}
             >
               {stats.count === 0 ? 'Orientation mode' : 'Student dashboard'}
             </div>
-            <h1 style={{ fontSize: 44, lineHeight: 1.05, marginTop: 4 }}>
+            <h1 className="platform-title" style={{ marginTop: 4 }}>
               {stats.count === 0 ? 'Start your Medlife training shift.' : 'Welcome back to clinical practice.'}
             </h1>
-            <div style={{ fontSize: 16, color: 'var(--ink-2)', fontWeight: 600, marginTop: 6 }}>
+            <div className="platform-copy" style={{ marginTop: 6 }}>
               {stats.count === 0
-                ? 'Choose an outpatient pathway, meet your first patient, and build your case log one encounter at a time.'
-                : 'Track your reviews, revisit weak domains, and keep sharpening your clinical reasoning.'}
+                ? liveVoiceReady
+                  ? 'Talk to an AI patient, work through history to treatment, and practise medicine in a safe simulation before it counts in the real world.'
+                  : 'Step into a safe AI-supported consultation flow, move from history to treatment, and build real clinical decision-making habits case by case.'
+                : 'Track your reviews, revisit weak domains, and keep sharpening your clinical reasoning through safe repeat practice.'}
             </div>
           </div>
 
-          <div className="plush" style={{ padding: 14, background: 'var(--cream-2)' }} data-testid="education-disclaimer">
+          <div className="glass-card" style={{ padding: 16, background: 'rgba(255,255,255,0.84)' }} data-testid="education-disclaimer">
             <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase' }}>
               Educational use
             </div>
@@ -319,7 +327,35 @@ export function HomeScreen() {
             </div>
           </div>
 
-          <div className="plush" style={{ padding: 16, background: session?.authenticated ? 'var(--mint)' : 'white' }} data-testid="auth-panel">
+          <div className="glass-card" style={{ padding: 18, background: 'linear-gradient(135deg, rgba(255,255,255,0.96), rgba(232, 248, 251, 0.96))' }} data-testid="how-it-works-panel">
+            <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>
+              {howItWorksTitle}
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {howItWorksPoints.map((point) => (
+                <div key={point} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span className="chip mint" style={{ marginTop: 1 }}>Flow</span>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.55 }}>{point}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ padding: 18, background: 'linear-gradient(135deg, rgba(255,255,255,0.96), rgba(221, 232, 245, 0.96))' }} data-testid="why-it-matters-panel">
+            <div style={{ fontWeight: 900, fontSize: 12, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--ink-2)' }}>
+              Why it&apos;s powerful
+            </div>
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {whyItMattersPoints.map((point) => (
+                <div key={point} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <span className="chip butter" style={{ marginTop: 1 }}>Value</span>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--ink)', lineHeight: 1.55 }}>{point}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card" style={{ padding: 18, background: session?.authenticated ? 'linear-gradient(135deg, rgba(232,248,251,0.96), rgba(255,255,255,0.96))' : 'rgba(255,255,255,0.92)' }} data-testid="auth-panel">
             {session?.authenticated ? (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
                 <div>
@@ -407,12 +443,11 @@ export function HomeScreen() {
 
           {stats.count === 0 ? (
             <div
-              className="plush-lg"
+              className="glass-card"
               style={{
-                background: 'var(--cream-2)',
-                padding: 18,
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.92), rgba(223,236,239,0.94))',
+                padding: 22,
                 position: 'relative',
-                transform: 'rotate(-0.6deg)',
               }}
             >
               <div style={{ position: 'absolute', top: -12, left: 22 }} className="chip butter">
@@ -450,7 +485,7 @@ export function HomeScreen() {
               </div>
             </div>
           ) : (
-            <div className="plush-lg" style={{ background: 'var(--peach)', padding: 18, position: 'relative', transform: 'rotate(-0.6deg)' }}>
+            <div className="glass-card" style={{ background: 'linear-gradient(135deg, rgba(221,232,245,0.96), rgba(255,255,255,0.94))', padding: 22, position: 'relative' }}>
               <div style={{ position: 'absolute', top: -12, left: 22 }} className="chip butter">
                 Continue revision
               </div>
@@ -517,7 +552,7 @@ export function HomeScreen() {
             Start a new case
           </button>
 
-          <div className="plush" style={{ padding: 16 }} data-testid="learner-stage-panel">
+          <div className="glass-card" style={{ padding: 18 }} data-testid="learner-stage-panel">
             <div
               style={{
                 fontWeight: 800,
@@ -636,7 +671,7 @@ export function HomeScreen() {
           </div>
 
           {session?.authenticated && inProgress.length > 0 && (
-            <div className="plush" style={{ padding: 16 }} data-testid="resume-attempts">
+            <div className="glass-card" style={{ padding: 18 }} data-testid="resume-attempts">
               <div
                 style={{
                   fontWeight: 800,
@@ -740,7 +775,7 @@ export function HomeScreen() {
             <span style={{ fontWeight: 800, color: 'var(--ink-2)' }}>→</span>
           </button>
 
-          <div className="plush" style={{ padding: 16 }}>
+          <div className="glass-card" style={{ padding: 18 }}>
             <div
               style={{
                 display: 'flex',
@@ -865,7 +900,7 @@ export function HomeScreen() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="plush" style={{ padding: 16, background: 'var(--butter)' }}>
+          <div className="glass-card" style={{ padding: 18, background: 'linear-gradient(135deg, rgba(216,230,255,0.94), rgba(255,255,255,0.94))' }}>
             <div
               style={{
                 fontWeight: 800,
@@ -948,7 +983,7 @@ export function HomeScreen() {
             </div>
           </div>
 
-          <div className="plush" style={{ padding: 16 }}>
+          <div className="glass-card" style={{ padding: 18 }}>
             <div
               style={{
                 fontWeight: 800,
@@ -1006,8 +1041,8 @@ export function HomeScreen() {
           </div>
 
           <div
-            className="plush"
-            style={{ padding: 14, background: 'var(--mint)', display: 'flex', alignItems: 'center', gap: 12 }}
+            className="glass-card"
+            style={{ padding: 16, background: 'linear-gradient(135deg, rgba(232,248,251,0.94), rgba(255,255,255,0.9))', display: 'flex', alignItems: 'center', gap: 12 }}
           >
             <div style={{ fontSize: 22, fontWeight: 900 }} className="floaty">
               Log

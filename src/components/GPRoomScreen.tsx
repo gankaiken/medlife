@@ -59,14 +59,14 @@ export function GPRoomScreen() {
   }, []);
 
   return (
-    <div className="screen" style={{ background: 'var(--cream)', position: 'relative' }}>
+    <div className="screen platform-screen" style={{ position: 'relative' }}>
       <TopBar here={1} steps={['Polyclinic', 'GP']} />
 
       <DoodleScatter
         items={[
-          { kind: 'sparkle', x: 60, y: 100, size: 22, color: '#FFD86B' },
-          { kind: 'sparkle', x: '88%', y: 130, size: 20, color: '#5AB7F2' },
-          { kind: 'star', x: 80, y: 560, size: 28, color: '#FFD86B', anim: 'wobble' },
+          { kind: 'sparkle', x: 60, y: 100, size: 22, color: 'var(--butter)' },
+          { kind: 'sparkle', x: '88%', y: 130, size: 20, color: 'var(--mint)' },
+          { kind: 'star', x: 80, y: 560, size: 28, color: 'var(--butter)', anim: 'wobble' },
           { kind: 'pill', x: '86%', y: 580, size: 60, anim: 'wobble' },
         ]}
       />
@@ -104,7 +104,7 @@ export function GPRoomScreen() {
             justifyContent: 'space-between',
             fontSize: 15,
             fontWeight: 800,
-            background: 'white',
+            background: 'rgba(252, 250, 245, 0.94)',
           }}
         >
           <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -132,7 +132,7 @@ export function GPRoomScreen() {
             style={{
               marginTop: 8,
               padding: 12,
-              background: 'white',
+              background: 'rgba(252, 250, 245, 0.95)',
               display: 'flex',
               gap: 8,
               flexWrap: 'wrap',
@@ -174,7 +174,7 @@ export function GPRoomScreen() {
           onClick={() => next && store.acceptNextPatient()}
           data-testid="accept-next-patient"
           style={{
-            background: 'var(--mint)',
+            background: 'linear-gradient(180deg, rgba(212, 234, 223, 0.98), rgba(236, 242, 233, 0.98))',
             padding: 32,
             position: 'relative',
             transform: 'rotate(-0.8deg)',
@@ -192,7 +192,7 @@ export function GPRoomScreen() {
               style={{
                 width: 160,
                 height: 160,
-                background: 'white',
+                background: 'rgba(252, 250, 245, 0.95)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -219,7 +219,7 @@ export function GPRoomScreen() {
                   right: 8,
                 }}
               >
-                <Doodle kind="sparkle" size={22} color="#FFD86B" />
+                <Doodle kind="sparkle" size={22} color="var(--butter)" />
               </span>
             </div>
           </div>
@@ -261,7 +261,7 @@ export function GPRoomScreen() {
           onClick={() => store.setScreen('library')}
           data-testid="browse-case-folder"
           style={{
-            background: 'var(--sky)',
+            background: 'linear-gradient(180deg, rgba(220, 225, 216, 0.98), rgba(242, 238, 230, 0.98))',
             padding: 32,
             position: 'relative',
             transform: 'rotate(0.8deg)',
@@ -277,7 +277,7 @@ export function GPRoomScreen() {
               style={{
                 width: 160,
                 height: 160,
-                background: 'white',
+                background: 'rgba(252, 250, 245, 0.95)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -328,13 +328,13 @@ function ChartFolder() {
   const stroke = 'var(--line)';
   return (
     <svg width="120" height="120" viewBox="0 0 120 120">
-      <rect x="14" y="22" width="92" height="14" rx="4" fill="#FFD86B" stroke={stroke} strokeWidth="3.5" />
-      <rect x="10" y="30" width="100" height="78" rx="10" fill="#FFB68A" stroke={stroke} strokeWidth="4" />
-      <rect x="20" y="42" width="80" height="60" rx="6" fill="white" stroke={stroke} strokeWidth="3" />
+      <rect x="14" y="22" width="92" height="14" rx="4" fill="#d7c07a" stroke={stroke} strokeWidth="3.5" />
+      <rect x="10" y="30" width="100" height="78" rx="10" fill="#d2a287" stroke={stroke} strokeWidth="4" />
+      <rect x="20" y="42" width="80" height="60" rx="6" fill="#fcfaf5" stroke={stroke} strokeWidth="3" />
       <line x1="30" y1="56" x2="86" y2="56" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
       <line x1="30" y1="68" x2="78" y2="68" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
       <line x1="30" y1="80" x2="70" y2="80" stroke={stroke} strokeWidth="3" strokeLinecap="round" />
-      <circle cx="92" cy="84" r="9" fill="#F47A92" stroke={stroke} strokeWidth="3" />
+      <circle cx="92" cy="84" r="9" fill="#a45d66" stroke={stroke} strokeWidth="3" />
       <text x="92" y="88" textAnchor="middle" fontFamily="Nunito" fontWeight="900" fontSize="11" fill="white">
         +
       </text>

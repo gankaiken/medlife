@@ -1,5 +1,6 @@
 import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import { store } from '../game/store';
+import { BackgroundMusic } from './BackgroundMusic';
 
 // ─── PATIENT FACE ───────────────────────────────────────────
 // style: 'cute' | 'portrait' | 'animal' | 'initials'
@@ -351,7 +352,9 @@ export function TopBar({
         justifyContent: 'space-between',
         padding: '14px 22px',
         borderBottom: '3px solid var(--line)',
-        background: 'white',
+        background: 'linear-gradient(90deg, #121256 0%, #006dae 58%, #005485 100%)',
+        color: 'white',
+        boxShadow: '0 10px 24px rgba(13, 27, 42, 0.14)',
       }}
     >
       <span
@@ -365,20 +368,25 @@ export function TopBar({
       <Breadcrumb steps={steps} here={here} />
       {showProfile ? (
         <div
-          className="tap"
-          onClick={() => store.setScreen('home')}
-          title="Open profile"
-          style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 10 }}
         >
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-2)' }}>Trainee</span>
+          <BackgroundMusic />
+          <div
+            className="tap"
+            onClick={() => store.setScreen('home')}
+            title="Open profile"
+            style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+          >
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'rgba(255,255,255,0.82)' }}>Trainee</span>
           <div
             style={{
               width: 36,
               height: 36,
               borderRadius: '50%',
-              background: 'var(--mint)',
-              border: '3px solid var(--line)',
-              boxShadow: '0 2px 0 var(--line)',
+              background: 'rgba(255,255,255,0.92)',
+              color: 'var(--ink)',
+              border: '3px solid rgba(255,255,255,0.7)',
+              boxShadow: '0 2px 0 rgba(12, 26, 43, 0.34)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -388,9 +396,12 @@ export function TopBar({
           >
             B
           </div>
+          </div>
         </div>
       ) : (
-        <div style={{ width: 80 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <BackgroundMusic />
+        </div>
       )}
     </div>
   );
@@ -408,39 +419,57 @@ export function Wordmark({ size = 36, dark = false }: WordmarkProps) {
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 8,
-        fontFamily: '"Segoe UI", system-ui, sans-serif',
+        gap: 10,
+        fontFamily: '"Arial Narrow", Arial, "Helvetica Neue", sans-serif',
         fontWeight: 900,
         fontSize: size,
         color: dark ? 'white' : 'var(--ink)',
-        letterSpacing: '-0.02em',
+        letterSpacing: '-0.04em',
       }}
     >
-      <span style={{ position: 'relative', display: 'inline-block' }}>
-        med
+      <span
+        style={{
+          width: size * 0.72,
+          height: size * 0.72,
+          borderRadius: size * 0.1,
+          background: dark ? 'rgba(255,255,255,0.18)' : 'linear-gradient(135deg, #121256 0%, #006dae 72%)',
+          border: dark ? '2px solid rgba(255,255,255,0.42)' : '2px solid rgba(255,255,255,0.28)',
+          position: 'relative',
+          overflow: 'hidden',
+          flexShrink: 0,
+        }}
+      >
         <span
           style={{
-            color: 'var(--teal-500)',
-            textShadow: dark ? 'none' : '0 2px 0 rgba(255,255,255,0.2)',
-            WebkitTextStroke: dark ? '0' : '2px var(--line)',
-            paintOrder: 'stroke fill',
+            position: 'absolute',
+            inset: '10% 14%',
+            background: 'rgba(255,255,255,0.92)',
+            clipPath: 'polygon(0 0, 30% 0, 50% 42%, 70% 0, 100% 0, 72% 100%, 50% 58%, 28% 100%)',
+          }}
+        />
+      </span>
+      <span style={{ position: 'relative', display: 'inline-block', lineHeight: 1 }}>
+        MED
+        <span
+          style={{
+            color: dark ? '#abf5f9' : 'var(--teal-700)',
           }}
         >
-          life
+          LIFE
         </span>
         <span
           style={{
             position: 'absolute',
-            right: -size * 0.52,
-            top: size * 0.14,
-            fontSize: size * 0.24,
-            letterSpacing: '0.18em',
+            left: size * 0.06,
+            top: size * 0.88,
+            fontSize: size * 0.22,
+            letterSpacing: '0.16em',
             color: dark ? 'rgba(255,255,255,0.9)' : 'var(--ink-2)',
             textTransform: 'uppercase',
             fontWeight: 800,
           }}
         >
-          sim
+          clinical simulator
         </span>
       </span>
     </div>
